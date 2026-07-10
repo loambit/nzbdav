@@ -2,18 +2,24 @@ import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
-export default defineConfig(({ isSsrBuild }) => ({
+export default defineConfig({
   server: {
     allowedHosts: [".net"],
   },
   resolve: {
     tsconfigPaths: true,
   },
-  build: {
-    rollupOptions: isSsrBuild ? { input: "./server/app.ts" } : undefined,
+  environments: {
+    ssr: {
+      build: {
+        rollupOptions: {
+          input: "./server/app.ts",
+        },
+      },
+    },
   },
   plugins: [
     tailwindcss(),
     reactRouter(),
   ],
-}));
+});
