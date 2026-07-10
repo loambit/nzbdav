@@ -7,16 +7,18 @@ wait_either() {
     while true; do
         if ! kill -0 "$pid1" 2>/dev/null; then
             wait "$pid1"
+            local exit_code=$?
             EXITED_PID=$pid1
             REMAINING_PID=$pid2
-            return $?
+            return "$exit_code"
         fi
 
         if ! kill -0 "$pid2" 2>/dev/null; then
             wait "$pid2"
+            local exit_code=$?
             EXITED_PID=$pid2
             REMAINING_PID=$pid1
-            return $?
+            return "$exit_code"
         fi
 
         sleep 0.5
@@ -94,9 +96,10 @@ fi
 cd /app/backend
 echo "Running database maintenance."
 su-exec "$USER_NAME" ./NzbWebDAV --db-migration
-if [ $? -ne 0 ]; then
-    echo "Database migration failed. Exiting with error code $?."
-    exit $?
+MIGRATION_EXIT_CODE=$?
+if [ "$MIGRATION_EXIT_CODE" -ne 0 ]; then
+    echo "Database migration failed. Exiting with error code $MIGRATION_EXIT_CODE."
+    exit "$MIGRATION_EXIT_CODE"
 fi
 echo "Done with database maintenance."
 
@@ -119,8 +122,8 @@ while true; do
     i=$((i+1))
     if [ "$i" -ge "$MAX_BACKEND_HEALTH_RETRIES" ]; then
         echo "Backend failed health check after $MAX_BACKEND_HEALTH_RETRIES retries. Exiting."
-        kill $BACKEND_PID
-        wait $BACKEND_PID
+        kill "$BACKEND_PID"
+        wait "$BACKEND_PID"
         exit 1
     fi
 
@@ -133,7 +136,7 @@ su-exec "$USER_NAME" npm run start &
 FRONTEND_PID=$!
 
 # Wait for either to exit
-wait_either $BACKEND_PID $FRONTEND_PID
+wait_either "$BACKEND_PID" "$FRONTEND_PID"
 EXIT_CODE=$?
 
 # Determine which process exited
@@ -144,7 +147,8 @@ else
 fi
 
 # Kill the remaining process
-kill $REMAINING_PID
+kill "$REMAINING_PID"
+wait "$REMAINING_PID" 2>/dev/null
 
 # Exit with the code of the process that died first
 exit $EXIT_CODE
