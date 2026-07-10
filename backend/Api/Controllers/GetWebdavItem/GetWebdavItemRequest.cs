@@ -47,12 +47,12 @@ public class GetWebdavItemRequest
             // strm streams link items by id and use a different download key
             var strmKey = configManager.GetStrmKey();
             var expectedDownloadKey = GenerateDownloadKey(strmKey, path);
-            if (downloadKey == expectedDownloadKey)
+            if (downloadKey.FixedTimeEquals(expectedDownloadKey))
                 return true;
         }
 
         var apiKey = EnvironmentUtil.GetRequiredVariable("FRONTEND_BACKEND_API_KEY");
-        return downloadKey == GenerateDownloadKey(apiKey, path);
+        return downloadKey.FixedTimeEquals(GenerateDownloadKey(apiKey, path));
     }
 
     public static string GenerateDownloadKey(string apiKey, string path)
