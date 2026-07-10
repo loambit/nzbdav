@@ -22,8 +22,10 @@ public class UnbufferedMultiSegmentStream : FastReadOnlyNonSeekableStream
     {
         ThrowIfDisposed();
 
-        while (!cancellationToken.IsCancellationRequested)
+        while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // if the stream is null, get the next stream.
             if (_stream == null)
             {
@@ -40,8 +42,6 @@ public class UnbufferedMultiSegmentStream : FastReadOnlyNonSeekableStream
             await _stream.DisposeAsync();
             _stream = null;
         }
-
-        return 0;
     }
 
     private void ThrowIfDisposed()
