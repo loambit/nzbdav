@@ -12,6 +12,7 @@ import { isRcloneSettingsUpdated, RcloneSettings } from "./rclone/rclone";
 import { useCallback, useState } from "react";
 import { useBlocker } from "react-router";
 import { ConfirmModal } from "~/components/confirm-modal/confirm-modal";
+import { getAppVersion } from "~/utils/version.server";
 
 const defaultConfig = {
     "general.base-url": "",
@@ -62,7 +63,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
     return {
         config: config,
-        appVersion: process.env.NZBDAV_VERSION ?? "unknown",
+        appVersion: (await getAppVersion()) ?? "unknown",
     }
 }
 

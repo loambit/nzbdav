@@ -5,7 +5,11 @@ import { useNavigate } from "react-router";
 
 const usenetConnectionsTopic = {'cxs': 'state'};
 
-export function LiveUsenetConnections() {
+type LiveUsenetConnectionsProps = {
+    hasUsenetProviders: boolean,
+};
+
+export function LiveUsenetConnections({ hasUsenetProviders }: LiveUsenetConnectionsProps) {
     const navigate = useNavigate();
     const [connections, setConnections] = useState<string | null>(null);
     const parts = (connections || "0|0|0|0|1|0").split("|");
@@ -15,6 +19,11 @@ export function LiveUsenetConnections() {
     const livePercent = 100 * (live / max);
 
     useEffect(() => {
+        if (!hasUsenetProviders) {
+            setConnections(null);
+            return;
+        }
+
         let ws: WebSocket;
         let disposed = false;
         function connect() {
@@ -31,23 +40,24 @@ export function LiveUsenetConnections() {
             setConnections(null);
         }
         return connect();
-    }, [setConnections]);
+    }, [hasUsenetProviders, navigate]);
 
     return (
         <div className={styles.container}>
             <div className={styles.title}>
                 Usenet Connections
             </div>
-            <div className={styles.bar}>
-                <div className={styles.max} />
-                <div className={styles.live} style={{ width: `${livePercent}%` }} />
-                <div className={styles.active} style={{ width: `${activePercent}%` }} />
-            </div>
+            {hasUsenetProviders && <div className={styles.bar}>
+                    <div className={styles.max} />
+                    <div className={styles.live} style={{ width: `${livePercent}%` }} />
+                    <div className={styles.active} style={{ width: `${activePercent}%` }} />
+                </div>}
             <div className={styles.caption}>
-                {connections && `${live} connected / ${max} max`}
-                {!connections && `Loading...`}
+                {!hasUsenetProviders && "No providers configured"}
+                {hasUsenetProviders && connections && `${live} connected / ${max} max`}
+                {hasUsenetProviders && !connections && "Loading..."}
             </div>
-            {connections &&
+            {hasUsenetProviders && connections &&
                 <div className={styles.caption}>
                     ( {active} active )
                 </div>

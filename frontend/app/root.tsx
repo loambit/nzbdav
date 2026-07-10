@@ -16,17 +16,35 @@ import { TopNavigation } from "./routes/_index/components/top-navigation/top-nav
 import { LeftNavigation } from "./routes/_index/components/left-navigation/left-navigation";
 import { PageLayout } from "./routes/_index/components/page-layout/page-layout";
 import { Loading } from "./routes/_index/components/loading/loading";
+import { getAppVersion } from "./utils/version.server";
+import { backendClient } from "./clients/backend-client.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   let path = new URL(request.url).pathname;
   if (path === "/login") return { useLayout: false };
   if (path === "/onboarding") return { useLayout: false };
 
+  const providerConfig = await backendClient.getConfig(["usenet.providers"]);
+
   return {
     useLayout: true,
-    version: process.env.NZBDAV_VERSION,
+    version: await getAppVersion(),
     isFrontendAuthDisabled: IS_FRONTEND_AUTH_DISABLED,
+    hasUsenetProviders: hasConfiguredUsenetProviders(
+      providerConfig.find(item => item.configName === "usenet.providers")?.configValue
+    ),
   };
+}
+
+function hasConfiguredUsenetProviders(configValue?: string): boolean {
+  if (!configValue) return false;
+
+  try {
+    const config = JSON.parse(configValue);
+    return Array.isArray(config?.Providers) && config.Providers.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 
@@ -50,7 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { useLayout, version, isFrontendAuthDisabled } = loaderData;
+  const { useLayout, version, isFrontendAuthDisabled, hasUsenetProviders } = loaderData;
   const location = useLocation();
   const navigation = useNavigation();
   const isNavigating = Boolean(navigation.location);
@@ -69,7 +87,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
         leftNavChild={
           <LeftNavigation
             version={version}
-            isFrontendAuthDisabled={isFrontendAuthDisabled} />
+            isFrontendAuthDisabled={isFrontendAuthDisabled}
+            hasUsenetProviders={hasUsenetProviders} />
         } />
     );
   }
