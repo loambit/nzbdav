@@ -5,6 +5,7 @@
     "composite": true,
     "strict": true,
     "noEmit": false,
+    "outDir": "dist-node",
     "types": ["node"],
     "lib": ["ES2022"],
     "target": "ES2022",
