@@ -1,11 +1,10 @@
 import type { Route } from "./+types/route";
-import styles from "./route.module.css"
 import { backendClient } from "~/clients/backend-client.server";
 import { HealthTable } from "./components/health-table/health-table";
 import { HealthStats } from "./components/health-stats/health-stats";
 import { useCallback, useEffect, useState } from "react";
 import { receiveMessage } from "~/utils/websocket-util";
-import { Alert } from "react-bootstrap";
+import { Alert, Icon } from "~/components/ui";
 
 const topicNames = {
     healthItemStatus: 'hs',
@@ -134,29 +133,28 @@ export default function Health({ loaderData }: Route.ComponentProps) {
     }, [onWebsocketMessage]);
 
     return (
-        <div className={styles.container}>
-            <div className={styles.section}>
-                <HealthStats stats={historyStats} />
-            </div>
+        <div className="flex min-h-full min-w-full flex-col gap-8 px-4 py-4 text-sm text-slate-300 md:px-8">
+            <HealthStats stats={historyStats} />
             {isEnabled && uncheckedCount > 20 &&
-                <Alert className={styles.alert} variant={'warning'}>
-                    <b>Attention</b>
-                    <ul className={styles.list}>
-                        <li className={styles.listItem}>
-                            You have ~{uncheckedCount} files whose health has never been determined.
-                        </li>
-                        <li className={styles.listItem}>
-                            The queue will run an initial health check of these files.
-                        </li>
-                        <li className={styles.listItem}>
-                            Under normal operation, health checks will occur much less frequently.
-                        </li>
-                    </ul>
+                <Alert className="flex gap-3 p-3" variant="warning">
+                    <Icon name="warning" filled className="mt-0.5 shrink-0 !text-[20px]" />
+                    <div>
+                        <div className="font-semibold">Attention</div>
+                        <ul className="mb-0 mt-1 list-disc space-y-1 pl-4">
+                            <li>
+                                You have ~{uncheckedCount} files whose health has never been determined.
+                            </li>
+                            <li>
+                                The queue will run an initial health check of these files.
+                            </li>
+                            <li>
+                                Under normal operation, health checks will occur much less frequently.
+                            </li>
+                        </ul>
+                    </div>
                 </Alert>
             }
-            <div className={styles.section}>
-                <HealthTable isEnabled={isEnabled} healthCheckItems={queueItems.filter((_, index) => index < 10)} />
-            </div>
+            <HealthTable isEnabled={isEnabled} healthCheckItems={queueItems.filter((_, index) => index < 10)} />
         </div>
     );
 }

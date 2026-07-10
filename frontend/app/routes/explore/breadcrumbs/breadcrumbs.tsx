@@ -1,8 +1,7 @@
 import React from "react"
-import styles from "./breadcrumbs.module.css"
 import { useCallback } from "react"
 import { useNavigate } from "react-router"
-import { className } from "~/utils/styling"
+import { Icon } from "~/components/ui"
 
 export type BreadcrumbProps = {
     parentDirectories: string[]
@@ -16,19 +15,28 @@ export function Breadcrumbs({ parentDirectories }: BreadcrumbProps): React.React
     }, [parentDirectories, navigate]);
 
     return (
-        <div className={styles.container}>
-            <div {...className([styles.home, styles.directory])} onClick={() => onClick(-1)}>
-                <div className={styles["home-icon"]} />
-                {parentDirectories.length == 0 && <div>home</div>}
-            </div>
+        <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-1 text-sm text-slate-400 md:mb-8">
+            <button
+                type="button"
+                className="flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
+                onClick={() => onClick(-1)}
+            >
+                <Icon name="home" filled className="!text-[22px]" />
+                {parentDirectories.length === 0 && <span>Home</span>}
+            </button>
             {parentDirectories.map((parentDirectory, index) =>
                 <React.Fragment key={index}>
-                    <div className={styles.separator} />
-                    <div className={styles.directory} onClick={() => onClick(index)}>
+                    <Icon name="chevron_right" className="shrink-0 !text-[20px] text-slate-500" />
+                    <button
+                        type="button"
+                        className="max-w-full break-all rounded-md px-2 py-1.5 text-left transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
+                        onClick={() => onClick(index)}
+                        aria-current={index === parentDirectories.length - 1 ? "page" : undefined}
+                    >
                         {parentDirectory}
-                    </div>
+                    </button>
                 </React.Fragment>
             )}
-        </div>
+        </nav>
     );
 }

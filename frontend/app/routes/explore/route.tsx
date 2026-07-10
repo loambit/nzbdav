@@ -1,6 +1,5 @@
 import type { Route } from "./+types/route";
 import { Breadcrumbs } from "./breadcrumbs/breadcrumbs";
-import styles from "./route.module.css"
 import { Link, redirect, useLocation, useNavigation } from "react-router";
 import { backendClient, type DirectoryItem } from "~/clients/backend-client.server";
 import { useCallback } from "react";
@@ -9,6 +8,7 @@ import { getDownloadKey } from "~/auth/downloads.server";
 import { Loading } from "../_index/components/loading/loading";
 import { formatFileSize } from "~/utils/file-size";
 import { ItemMenu } from "./item-menu/item-menu";
+import { Icon } from "~/components/ui";
 
 export type ExplorePageData = {
     parentDirectories: string[],
@@ -69,39 +69,41 @@ function Body(props: ExplorePageData) {
     }, [location.pathname]);
 
     return (
-        <div className={styles.container}>
+        <div className="absolute flex min-h-full min-w-full flex-col px-4 py-4 text-base text-slate-300 md:px-8">
             <Breadcrumbs parentDirectories={parentDirectories} />
-            {!isNavigating &&
-                <div>
+            {!isNavigating && items.length > 0 &&
+                <div className="overflow-visible rounded-lg border border-slate-700/70 bg-gray-800 shadow-md">
                     {items.filter(x => x.isDirectory).map((x, index) =>
                         <div key={`${index}_dir_item`} className={getClassName(x)}>
-                            <Link to={getDirectoryPath(x.name)}>
-                                <div className={styles["item-content"]}>
-                                    <div className={styles["directory-icon"]} />
-                                    <div className={styles["item-name"]}>{x.name}</div>
-                                </div>
+                            <Link
+                                to={getDirectoryPath(x.name)}
+                                className="flex min-w-0 flex-1 items-center gap-3 p-3 text-inherit no-underline transition-colors hover:bg-white/5 active:bg-white/10 md:p-4"
+                            >
+                                <Icon name="folder" filled className="shrink-0 !text-[40px] text-slate-400" />
+                                <div className="break-all">{x.name}</div>
                             </Link>
                         </div>
                     )}
                     {items.filter(x => !x.isDirectory).map((x, index) =>
                         <div key={`${index}_file_item`} className={getClassName(x)}>
-                            <a href={getFilePath(x as ExploreFile)} className={styles["item-content"]}>
-                                <div className={getIcon(x as ExploreFile)} />
-                                <div className={styles["item-info"]}>
-                                    <div className={styles["item-name"]}>{x.name}</div>
-                                    <div className={styles["item-size"]}>{formatFileSize(x.size)}</div>
+                            <a
+                                href={getFilePath(x as ExploreFile)}
+                                className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-3 pr-1 text-inherit no-underline transition-colors hover:bg-white/5 active:bg-white/10 md:py-4 md:pl-4"
+                            >
+                                <Icon name={getIcon(x as ExploreFile)} className="shrink-0 !text-[40px] text-slate-400" />
+                                <div className="flex min-w-0 flex-col gap-1 leading-none">
+                                    <div className="break-all">{x.name}</div>
+                                    <div className="font-mono text-xs text-slate-500">{formatFileSize(x.size)}</div>
                                 </div>
                             </a>
                             <ItemMenu
-                                className={styles["item-menu"]}
-                                openClassName={styles["open-item-menu"]}
                                 exploreFile={x as ExploreFile}
                                 previewPath={getFilePath(x as ExploreFile)} />
                         </div>
                     )}
                 </div>
             }
-            {isNavigating && <Loading className={styles.loading} />}
+            {isNavigating && <Loading className="min-h-0 flex-1" />}
         </div >
     );
 }
@@ -113,11 +115,11 @@ function getExtension(filename: string): string | undefined {
 }
 
 function getIcon(file: ExploreFile) {
-    if (file.name.toLowerCase().endsWith(".mkv")) return styles["video-icon"];
-    if (file.mimeType === "application/mp4") return styles["video-icon"];
-    if (file.mimeType && file.mimeType.startsWith("video")) return styles["video-icon"];
-    if (file.mimeType && file.mimeType.startsWith("image")) return styles["image-icon"];
-    return styles["file-icon"];
+    if (file.name.toLowerCase().endsWith(".mkv")) return "movie";
+    if (file.mimeType === "application/mp4") return "movie";
+    if (file.mimeType && file.mimeType.startsWith("video")) return "movie";
+    if (file.mimeType && file.mimeType.startsWith("image")) return "image";
+    return "draft";
 }
 
 function getWebdavPath(pathname: string): string {
@@ -141,7 +143,6 @@ function getParentDirectories(webdavPath: string): string[] {
 }
 
 function getClassName(item: DirectoryItem | ExploreFile) {
-    let className = styles.item;
-    if (item.name.startsWith('.')) className += " " + styles.hidden;
-    return className;
+    const hidden = item.name.startsWith('.') ? " opacity-50" : "";
+    return `relative flex border-b border-slate-700/70 last:border-b-0${hidden}`;
 }
