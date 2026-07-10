@@ -115,22 +115,37 @@ public class AddFileController(
         {
             ValidateBackupCategory(category);
 
-            if (!Directory.Exists(backupLocation))
-                Directory.CreateDirectory(backupLocation);
+            var backupRoot = Path.GetFullPath(backupLocation);
+            var backupRootPrefix = Path.EndsInDirectorySeparator(backupRoot)
+                ? backupRoot
+                : backupRoot + Path.DirectorySeparatorChar;
+            if (!Directory.Exists(backupRoot))
+                Directory.CreateDirectory(backupRoot);
 
-            var destDir = Path.Combine(backupLocation, category);
+            var destDir = Path.GetFullPath(Path.Combine(backupRootPrefix, category));
+            if (!destDir.StartsWith(backupRootPrefix, StringComparison.Ordinal))
+                throw new ArgumentException("The NZB backup category must stay within the configured directory.");
             if (!Directory.Exists(destDir))
                 Directory.CreateDirectory(destDir);
 
-            var baseName = Path.GetFileNameWithoutExtension(fileName);
-            var ext = Path.GetExtension(fileName);
+            var destDirPrefix = Path.EndsInDirectorySeparator(destDir)
+                ? destDir
+                : destDir + Path.DirectorySeparatorChar;
+            var leafName = Path.GetFileName(fileName);
+            var baseName = Path.GetFileNameWithoutExtension(leafName);
+            if (string.IsNullOrWhiteSpace(baseName)) baseName = id.ToString();
+            var ext = Path.GetExtension(leafName);
             if (string.IsNullOrEmpty(ext)) ext = ".nzb";
 
-            var destPath = Path.Combine(destDir, $"{baseName}{ext}");
+            var destPath = Path.GetFullPath(Path.Combine(destDirPrefix, $"{baseName}{ext}"));
+            if (!destPath.StartsWith(destDirPrefix, StringComparison.Ordinal))
+                throw new ArgumentException("The NZB backup file must stay within its category directory.");
             var counter = 2;
             while (System.IO.File.Exists(destPath))
             {
-                destPath = Path.Combine(destDir, $"{baseName} ({counter}){ext}");
+                destPath = Path.GetFullPath(Path.Combine(destDirPrefix, $"{baseName} ({counter}){ext}"));
+                if (!destPath.StartsWith(destDirPrefix, StringComparison.Ordinal))
+                    throw new ArgumentException("The NZB backup file must stay within its category directory.");
                 counter++;
             }
 
@@ -146,7 +161,8 @@ public class AddFileController(
 
     private static void ValidateBackupCategory(string category)
     {
-        if (Path.IsPathRooted(category) ||
+        if (string.IsNullOrWhiteSpace(category) ||
+            Path.IsPathRooted(category) ||
             category is "." or ".." ||
             category.Contains('/') ||
             category.Contains('\\') ||

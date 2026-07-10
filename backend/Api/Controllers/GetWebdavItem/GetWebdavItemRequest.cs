@@ -46,21 +46,33 @@ public class GetWebdavItemRequest
         {
             // strm streams link items by id and use a different download key
             var strmKey = configManager.GetStrmKey();
-            var expectedDownloadKey = GenerateDownloadKey(strmKey, path);
-            if (downloadKey.FixedTimeEquals(expectedDownloadKey))
+            if (VerifyDownloadKey(downloadKey, strmKey, path))
                 return true;
         }
 
         var apiKey = EnvironmentUtil.GetRequiredVariable("FRONTEND_BACKEND_API_KEY");
-        return downloadKey.FixedTimeEquals(GenerateDownloadKey(apiKey, path));
+        return VerifyDownloadKey(downloadKey, apiKey, path);
+    }
+
+    private static bool VerifyDownloadKey(string? downloadKey, string apiKey, string path)
+    {
+        return downloadKey.FixedTimeEquals(GenerateDownloadKey(apiKey, path))
+            || downloadKey.FixedTimeEquals(GenerateLegacyDownloadKey(apiKey, path));
     }
 
     public static string GenerateDownloadKey(string apiKey, string path)
     {
+        var keyBytes = Encoding.UTF8.GetBytes(apiKey);
+        var pathBytes = Encoding.UTF8.GetBytes(path);
+        var hashBytes = HMACSHA256.HashData(keyBytes, pathBytes);
+        return Convert.ToHexStringLower(hashBytes);
+    }
+
+    private static string GenerateLegacyDownloadKey(string apiKey, string path)
+    {
         var input = $"{path}_{apiKey}";
         var inputBytes = Encoding.UTF8.GetBytes(input);
         var hashBytes = SHA256.HashData(inputBytes);
-        var hash = Convert.ToHexStringLower(hashBytes);
-        return hash;
+        return Convert.ToHexStringLower(hashBytes);
     }
 }

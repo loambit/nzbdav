@@ -1,6 +1,7 @@
 import "react-router";
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { websocketServer } from "./websocket.server";
 import { isAuthenticated } from "~/auth/authentication.server";
@@ -41,6 +42,27 @@ const setApiKeyForAuthenticatedRequests = async (req: express.Request) => {
   req.headers["x-api-key"] = process.env.FRONTEND_BACKEND_API_KEY || "";
 }
 
+const credentialPaths = new Set([
+  "/login",
+  "/login.data",
+  "/onboarding",
+  "/onboarding.data",
+]);
+const credentialRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const remoteAddress = req.socket.remoteAddress;
+    return remoteAddress ? ipKeyGenerator(remoteAddress) : "unknown";
+  },
+  skip: (req) => {
+    return req.method.toUpperCase() !== "POST"
+      || !credentialPaths.has(decodeURIComponent(req.path));
+  },
+});
+
 app.use(async (req, res, next) => {
   const path = decodeURIComponent(req.path);
   if (
@@ -58,6 +80,9 @@ app.use(async (req, res, next) => {
   }
   next();
 });
+
+// Limit credential attempts without throttling WebDAV, API, or regular UI traffic.
+app.use(credentialRateLimiter);
 
 // Require authentication for all React Router routes
 app.use(authMiddleware);
