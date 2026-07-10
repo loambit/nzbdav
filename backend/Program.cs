@@ -20,7 +20,8 @@ using NzbWebDAV.WebDav.Base;
 using NzbWebDAV.Websocket;
 using Serilog;
 using Serilog.Events;
-using Serilog.Sinks.SystemConsole.Themes;
+using Serilog.Templates;
+using Serilog.Templates.Themes;
 
 namespace NzbWebDAV;
 
@@ -47,90 +48,117 @@ class Program
             .MinimumLevel.Override("Microsoft.AspNetCore.Mvc", AtLeast(level, LogEventLevel.Warning))
             .MinimumLevel.Override("Microsoft.AspNetCore.Routing", AtLeast(level, LogEventLevel.Warning))
             .MinimumLevel.Override("Microsoft.AspNetCore.DataProtection", AtLeast(level, LogEventLevel.Error))
-            .WriteTo.Console(theme: AnsiConsoleTheme.Code)
+            .WriteTo.Console(new ExpressionTemplate(
+                "[{@t:HH:mm:ss} {@l:u3}] " +
+                "{#if SourceContext is not null}" +
+                "{Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1)}: " +
+                "{#end}{@m}\n{@x}",
+                theme: TemplateTheme.Code))
             .CreateLogger();
 
-        // Block upgrades to version 0.6.x
-        BlockUpgradesToV06X();
-
-        // initialize database
-        await using var databaseContext = new DavDatabaseContext();
-        await databaseContext.Database
-            .ExecuteSqlRawAsync(
-                "PRAGMA journal_mode = WAL;",
-                SigtermUtil.GetCancellationToken())
-            .ConfigureAwait(false);
-
-        // run database migration, if necessary.
-        if (args.Contains("--db-migration"))
+        try
         {
-            var argIndex = args.ToList().IndexOf("--db-migration");
-            var targetMigration = args.Length > argIndex + 1 ? args[argIndex + 1] : null;
+            Log.Information(
+                "Starting NzbDav {Version} with config at {ConfigPath}; minimum log level is {LogLevel}",
+                ConfigManager.AppVersion,
+                DavDatabaseContext.ConfigPath,
+                level);
+
+            // Block upgrades to version 0.6.x
+            BlockUpgradesToV06X();
+
+            // initialize database
+            await using var databaseContext = new DavDatabaseContext();
             await databaseContext.Database
-                .MigrateAsync(targetMigration, SigtermUtil.GetCancellationToken())
+                .ExecuteSqlRawAsync(
+                    "PRAGMA journal_mode = WAL;",
+                    SigtermUtil.GetCancellationToken())
                 .ConfigureAwait(false);
-            await PerformDatabaseVacuumIfEnabled();
-            return;
-        }
 
-        // initialize the config-manager
-        var configManager = new ConfigManager();
-        await configManager.LoadConfig().ConfigureAwait(false);
-
-        // initialize rclone client
-        RcloneClient.Initialize(configManager);
-
-        // initialize websocket-manager
-        var websocketManager = new WebsocketManager();
-
-        // initialize webapp
-        var builder = WebApplication.CreateBuilder(args);
-        var maxRequestBodySize = EnvironmentUtil.GetLongVariable("MAX_REQUEST_BODY_SIZE") ?? 100 * 1024 * 1024;
-        builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxRequestBodySize);
-        builder.Host.UseSerilog();
-        builder.Services.AddControllers();
-        builder.Services.AddHealthChecks();
-        builder.Services
-            .AddWebdavBasicAuthentication(configManager)
-            .AddSingleton(configManager)
-            .AddSingleton(websocketManager)
-            .AddSingleton<UsenetStreamingClient>()
-            .AddSingleton<QueueManager>()
-            .AddHostedService<HealthCheckService>()
-            .AddHostedService<ArrMonitoringService>()
-            .AddHostedService<BlobCleanupService>()
-            .AddHostedService<NzbBlobCleanupService>()
-            .AddHostedService<HistoryCleanupService>()
-            .AddHostedService<DavCleanupService>()
-            .AddHostedService<UsenetFileToBlobstoreMigrationService>()
-            .AddHostedService<RemoveOrphanedFilesSchedulerService>()
-            .AddScoped<DavDatabaseContext>()
-            .AddScoped<DavDatabaseClient>()
-            .AddScoped<DatabaseStore>()
-            .AddScoped<IStore, DatabaseStore>()
-            .AddScoped<GetAndHeadHandlerPatch>()
-            .AddScoped<SabApiController>()
-            .AddNWebDav(opts =>
+            // run database migration, if necessary.
+            if (args.Contains("--db-migration"))
             {
-                opts.Handlers["GET"] = typeof(GetAndHeadHandlerPatch);
-                opts.Handlers["HEAD"] = typeof(GetAndHeadHandlerPatch);
-                opts.Filter = opts.GetFilter();
-                opts.RequireAuthentication = !WebApplicationAuthExtensions
-                    .IsWebdavAuthDisabled();
-            });
+                var argIndex = args.ToList().IndexOf("--db-migration");
+                var targetMigration = args.Length > argIndex + 1 ? args[argIndex + 1] : null;
+                Log.Information(
+                    "Applying database migrations{Target}",
+                    targetMigration is null ? string.Empty : $" through {targetMigration}");
+                await databaseContext.Database
+                    .MigrateAsync(targetMigration, SigtermUtil.GetCancellationToken())
+                    .ConfigureAwait(false);
+                Log.Information("Database migrations completed");
+                await PerformDatabaseVacuumIfEnabled();
+                return;
+            }
 
-        // run
-        var app = builder.Build();
-        _ = app.Services.GetRequiredService<QueueManager>();
-        app.UseMiddleware<ExceptionMiddleware>();
-        app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
-        app.MapHealthChecks("/health");
-        app.Map("/ws", websocketManager.HandleRoute);
-        app.MapControllers();
-        app.UseWebdavBasicAuthentication();
-        app.UseNWebDav();
-        app.Lifetime.ApplicationStopping.Register(SigtermUtil.Cancel);
-        await app.RunAsync().ConfigureAwait(false);
+            // initialize the config-manager
+            var configManager = new ConfigManager();
+            await configManager.LoadConfig().ConfigureAwait(false);
+
+            // initialize rclone client
+            RcloneClient.Initialize(configManager);
+
+            // initialize websocket-manager
+            var websocketManager = new WebsocketManager();
+
+            // initialize webapp
+            var builder = WebApplication.CreateBuilder(args);
+            var maxRequestBodySize = EnvironmentUtil.GetLongVariable("MAX_REQUEST_BODY_SIZE") ?? 100 * 1024 * 1024;
+            builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxRequestBodySize);
+            builder.Host.UseSerilog();
+            builder.Services.AddControllers();
+            builder.Services.AddHealthChecks();
+            builder.Services
+                .AddWebdavBasicAuthentication(configManager)
+                .AddSingleton(configManager)
+                .AddSingleton(websocketManager)
+                .AddSingleton<UsenetStreamingClient>()
+                .AddSingleton<QueueManager>()
+                .AddHostedService<HealthCheckService>()
+                .AddHostedService<ArrMonitoringService>()
+                .AddHostedService<BlobCleanupService>()
+                .AddHostedService<NzbBlobCleanupService>()
+                .AddHostedService<HistoryCleanupService>()
+                .AddHostedService<DavCleanupService>()
+                .AddHostedService<UsenetFileToBlobstoreMigrationService>()
+                .AddHostedService<RemoveOrphanedFilesSchedulerService>()
+                .AddScoped<DavDatabaseContext>()
+                .AddScoped<DavDatabaseClient>()
+                .AddScoped<DatabaseStore>()
+                .AddScoped<IStore, DatabaseStore>()
+                .AddScoped<GetAndHeadHandlerPatch>()
+                .AddScoped<SabApiController>()
+                .AddNWebDav(opts =>
+                {
+                    opts.Handlers["GET"] = typeof(GetAndHeadHandlerPatch);
+                    opts.Handlers["HEAD"] = typeof(GetAndHeadHandlerPatch);
+                    opts.Filter = opts.GetFilter();
+                    opts.RequireAuthentication = !WebApplicationAuthExtensions
+                        .IsWebdavAuthDisabled();
+                });
+
+            // run
+            var app = builder.Build();
+            _ = app.Services.GetRequiredService<QueueManager>();
+            app.UseMiddleware<ExceptionMiddleware>();
+            app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+            app.MapHealthChecks("/health");
+            app.Map("/ws", websocketManager.HandleRoute);
+            app.MapControllers();
+            app.UseWebdavBasicAuthentication();
+            app.UseNWebDav();
+            app.Lifetime.ApplicationStopping.Register(SigtermUtil.Cancel);
+            await app.RunAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Fatal(exception, "NzbDav terminated unexpectedly");
+            throw;
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
     }
 
     private static LogEventLevel AtLeast(LogEventLevel configured, LogEventLevel minimum)
@@ -160,7 +188,7 @@ class Program
         if (upgradeEnv == "0.6.0") return;
 
         // Otherwise, display the upgrade message, and exit.
-        Console.WriteLine(
+        Log.Fatal(
             """
             Version 0.6.0 of nzbdav is NOT backwards compatible.
             You can upgrade, but you won't be able to downgrade.
@@ -169,6 +197,7 @@ class Program
             To acknowledge this message and continue upgrading, set the env variable UPGRADE=0.6.0
             """
         );
+        Log.CloseAndFlush();
         Environment.Exit(1);
     }
 
@@ -178,10 +207,10 @@ class Program
         await configManager.LoadConfig().ConfigureAwait(false);
         if (configManager.IsDatabaseStartupVacuumEnabled())
         {
-            Console.Write("Performing database vacuum...");
+            Log.Information("Performing database vacuum");
             await using var databaseContext = new DavDatabaseContext();
             await databaseContext.Database.ExecuteSqlRawAsync("VACUUM;");
-            Console.WriteLine("Done.");
+            Log.Information("Database vacuum completed");
         }
     }
 }

@@ -5,6 +5,7 @@ import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { websocketServer } from "./websocket.server";
 import { shouldProxyToBackend } from "./proxy-path";
+import { logger } from "./logger";
 import { isAuthenticated } from "~/auth/authentication.server";
 import { authMiddleware } from "~/auth/auth-middleware.server";
 
@@ -16,6 +17,16 @@ const forwardToBackend = createProxyMiddleware({
   target: process.env.BACKEND_URL,
   changeOrigin: true,
   on: {
+    error: (error, req, res) => {
+      logger.error(
+        `Backend proxy failed for ${req.method ?? "UNKNOWN"} ${req.url ?? "unknown URL"}`,
+        error,
+      );
+      if ("writeHead" in res && !res.headersSent) {
+        res.writeHead(502, { "Content-Type": "text/plain" });
+        res.end("Bad Gateway");
+      }
+    },
     proxyRes: (proxyRes, req, res) => {
       proxyRes.on('close', () => {
         if (!res.writableEnded) {
@@ -61,6 +72,12 @@ const credentialRateLimiter = rateLimit({
   skip: (req) => {
     return req.method.toUpperCase() !== "POST"
       || !credentialPaths.has(decodeURIComponent(req.path));
+  },
+  handler: (req, res, _next, options) => {
+    logger.warn(
+      `Credential rate limit exceeded for ${req.ip ?? "unknown IP"} on ${req.path}`,
+    );
+    res.status(options.statusCode).send(options.message);
   },
 });
 

@@ -383,7 +383,9 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
             if (lastException is not null)
             {
                 var msg = lastException.SourceException.Message;
-                Log.Debug($"Encountered error during NNTP Operation: `{msg}`. Trying another provider.");
+                Log.Debug(
+                    "Encountered error during NNTP operation: {ErrorMessage}. Trying another provider",
+                    msg);
             }
 
             try

@@ -36,6 +36,11 @@ public class QueueItemProcessor(
     {
         // initialize
         var startTime = DateTime.Now;
+        Log.Information(
+            "Processing queue item {JobName} ({QueueItemId}) in category {Category}",
+            queueItem.JobName,
+            queueItem.Id,
+            queueItem.Category);
         _ = websocketManager.SendMessage(WebsocketTopic.QueueItemStatus, $"{queueItem.Id}|Downloading");
 
         // process the job
@@ -48,7 +53,7 @@ public class QueueItemProcessor(
         // then we need to clear any db changes and finish early.
         catch (Exception e) when (e.GetBaseException().IsCancellationException())
         {
-            Log.Information($"Processing of queue item `{queueItem.JobName}` was cancelled.");
+            Log.Information("Processing of queue item {JobName} was cancelled", queueItem.JobName);
             dbClient.Ctx.ClearChangeTracker();
         }
 
@@ -60,7 +65,7 @@ public class QueueItemProcessor(
         {
             try
             {
-                Log.Error($"Failed to process job, `{queueItem.JobName}` -- {e.Message}");
+                Log.Error(e, "Failed to process queue item {JobName}; retrying in one minute", queueItem.JobName);
                 dbClient.Ctx.ClearChangeTracker();
                 queueItem.PauseUntil = DateTime.Now.AddMinutes(1);
                 dbClient.Ctx.QueueItems.Attach(queueItem);
@@ -70,7 +75,7 @@ public class QueueItemProcessor(
             }
             catch (Exception ex)
             {
-                Log.Error(ex, ex.Message);
+                Log.Error(ex, "Failed to schedule retry for queue item {JobName}", queueItem.JobName);
             }
         }
 
@@ -85,7 +90,11 @@ public class QueueItemProcessor(
             }
             catch (Exception ex)
             {
-                Log.Error(e, ex.Message);
+                Log.Error(
+                    ex,
+                    "Failed to mark queue item {JobName} as failed after processing error: {ProcessingError}",
+                    queueItem.JobName,
+                    e.Message);
             }
         }
     }
@@ -368,6 +377,14 @@ public class QueueItemProcessor(
         _ = websocketManager.SendMessage(WebsocketTopic.HistoryItemAdded, historySlot.ToJson());
         _ = DavDatabaseContext.RcloneVfsForget(["/nzbs"]);
         _ = RefreshMonitoredDownloads();
+        if (error is null)
+        {
+            Log.Information(
+                "Completed queue item {JobName} ({QueueItemId}) in {ElapsedSeconds} seconds",
+                queueItem.JobName,
+                queueItem.Id,
+                historyItem.DownloadTimeSeconds);
+        }
     }
 
     private async Task RefreshMonitoredDownloads()
@@ -390,7 +407,7 @@ public class QueueItemProcessor(
         }
         catch (Exception e)
         {
-            Log.Debug($"Could not refresh monitored downloads for Arr instance: `{arrClient.Host}`. {e.Message}");
+            Log.Debug(e, "Could not refresh monitored downloads for Arr instance {Host}", arrClient.Host);
         }
     }
 }

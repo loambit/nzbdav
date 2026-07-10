@@ -30,7 +30,7 @@ namespace NzbWebDAV.Par2Recovery
                 }
                 catch (Exception e)
                 {
-                    Log.Warning($"Failed to read par2 packet: {e.Message}");
+                    Log.Warning(e, "Failed to read PAR2 packet");
                     yield break;
                 }
 

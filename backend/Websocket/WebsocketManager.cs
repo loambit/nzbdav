@@ -19,7 +19,9 @@ public class WebsocketManager
             using var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
             if (!await Authenticate(webSocket).ConfigureAwait(false))
             {
-                Log.Warning($"Closing unauthenticated websocket connection from {context.Connection.RemoteIpAddress}");
+                Log.Warning(
+                    "Closing unauthenticated websocket connection from {RemoteIpAddress}",
+                    context.Connection.RemoteIpAddress);
                 await CloseUnauthorizedConnection(webSocket).ConfigureAwait(false);
                 return;
             }
@@ -27,6 +29,10 @@ public class WebsocketManager
             // mark the socket as authenticated
             lock (_authenticatedSockets)
                 _authenticatedSockets.Add(webSocket);
+            Log.Debug(
+                "Websocket client connected from {RemoteIpAddress}; {ConnectionCount} authenticated clients connected",
+                context.Connection.RemoteIpAddress,
+                GetAuthenticatedSocketCount());
 
             // send current state for all topics
             List<KeyValuePair<WebsocketTopic, string>>? lastMessage;
@@ -39,6 +45,10 @@ public class WebsocketManager
             await WaitForDisconnected(webSocket).ConfigureAwait(false);
             lock (_authenticatedSockets)
                 _authenticatedSockets.Remove(webSocket);
+            Log.Debug(
+                "Websocket client disconnected from {RemoteIpAddress}; {ConnectionCount} authenticated clients connected",
+                context.Connection.RemoteIpAddress,
+                GetAuthenticatedSocketCount());
         }
         else
         {
@@ -97,7 +107,7 @@ public class WebsocketManager
         }
         catch (Exception e)
         {
-            Log.Warning(e.Message);
+            Log.Warning(e, "Websocket receive loop failed");
         }
     }
 
@@ -127,7 +137,7 @@ public class WebsocketManager
         }
         catch (Exception e)
         {
-            Log.Debug($"Failed to send message to websocket. {e.Message}");
+            Log.Debug(e, "Failed to send message to websocket");
         }
     }
 
@@ -163,6 +173,12 @@ public class WebsocketManager
     {
         if (socket.State == WebSocketState.Open)
             await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Unauthorized", CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private int GetAuthenticatedSocketCount()
+    {
+        lock (_authenticatedSockets)
+            return _authenticatedSockets.Count;
     }
 
     private sealed class TopicMessage(WebsocketTopic topic, string message)

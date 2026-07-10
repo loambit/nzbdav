@@ -1,0 +1,131 @@
+import type { RequestHandler } from "express";
+import { createColors } from "picocolors";
+
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+const levels: Record<LogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
+
+const levelAliases: Record<string, LogLevel> = {
+  verbose: "debug",
+  debug: "debug",
+  information: "info",
+  info: "info",
+  warning: "warn",
+  warn: "warn",
+  error: "error",
+  fatal: "error",
+};
+const configuredLevel = levelAliases[process.env.LOG_LEVEL?.toLowerCase() ?? ""];
+const minimumLevel: LogLevel =
+  configuredLevel
+    ? configuredLevel
+    : process.env.NODE_ENV === "development" ? "debug" : "info";
+
+const colorEnabled =
+  process.env.NO_COLOR === undefined
+  && (process.env.FORCE_COLOR !== undefined || process.stdout.isTTY);
+const color = createColors(colorEnabled);
+
+const levelLabels: Record<LogLevel, string> = {
+  debug: color.gray("DBG"),
+  info: color.cyan("INF"),
+  warn: color.yellow("WRN"),
+  error: color.red("ERR"),
+};
+
+function timestamp(): string {
+  return new Date().toLocaleTimeString("en-GB", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatDetail(detail: unknown): string {
+  if (detail instanceof Error) {
+    return detail.stack ?? detail.message;
+  }
+  if (typeof detail === "string") {
+    return detail;
+  }
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return String(detail);
+  }
+}
+
+function write(level: LogLevel, message: string, details: unknown[]): void {
+  if (levels[level] < levels[minimumLevel]) {
+    return;
+  }
+
+  const prefix = `${color.dim(timestamp())} ${levelLabels[level]}`;
+  const suffix = details.length > 0
+    ? ` ${details.map(formatDetail).join(" ")}`
+    : "";
+  const line = `[${prefix}] ${message}${suffix}\n`;
+  (level === "error" ? process.stderr : process.stdout).write(line);
+}
+
+export const logger = {
+  debug: (message: string, ...details: unknown[]) => write("debug", message, details),
+  info: (message: string, ...details: unknown[]) => write("info", message, details),
+  warn: (message: string, ...details: unknown[]) => write("warn", message, details),
+  error: (message: string, ...details: unknown[]) => write("error", message, details),
+};
+
+function colorMethod(method: string): string {
+  switch (method) {
+    case "GET":
+      return color.cyan(method);
+    case "POST":
+      return color.green(method);
+    case "PUT":
+    case "PATCH":
+      return color.yellow(method);
+    case "DELETE":
+      return color.red(method);
+    default:
+      return color.magenta(method);
+  }
+}
+
+function colorStatus(status: number): string {
+  const value = String(status);
+  if (status >= 500) return color.red(value);
+  if (status >= 400) return color.yellow(value);
+  if (status >= 300) return color.cyan(value);
+  return color.green(value);
+}
+
+export const requestLogger: RequestHandler = (req, res, next) => {
+  const startedAt = process.hrtime.bigint();
+
+  res.on("finish", () => {
+    if (req.originalUrl === "/favicon.ico") {
+      return;
+    }
+
+    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    const message =
+      `${colorMethod(req.method)} ${req.originalUrl} `
+      + `${colorStatus(res.statusCode)} ${color.dim(`${elapsedMs.toFixed(1)} ms`)}`;
+
+    if (res.statusCode >= 500) {
+      logger.error(message);
+    } else if (res.statusCode >= 400) {
+      logger.warn(message);
+    } else if (process.env.NODE_ENV === "development") {
+      logger.debug(message);
+    }
+  });
+
+  next();
+};

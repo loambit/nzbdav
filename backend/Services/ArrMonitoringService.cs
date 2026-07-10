@@ -65,11 +65,11 @@ public class ArrMonitoringService : BackgroundService
         }
         catch (Exception e) when (e is HttpRequestException { InnerException: System.Net.Sockets.SocketException })
         {
-            Log.Debug($"Could not reach Arr instance `{client.Host}` for queue monitoring: {e.Message}");
+            Log.Debug(e, "Could not reach Arr instance {Host} for queue monitoring", client.Host);
         }
         catch (Exception e)
         {
-            Log.Error($"Error occured while monitoring queue for `{client.Host}`: {e.Message}");
+            Log.Error(e, "Error occurred while monitoring queue for {Host}", client.Host);
         }
     }
 
@@ -85,6 +85,10 @@ public class ArrMonitoringService : BackgroundService
 
         if (action is ArrConfig.QueueAction.DoNothing) return;
         await client.DeleteQueueRecord(item.Id, action).ConfigureAwait(false);
-        Log.Warning($"Resolved stuck queue item `{item.Title}` from `{client.Host}, with action `{action}`");
+        Log.Warning(
+            "Resolved stuck queue item {QueueItemTitle} from {Host} with action {Action}",
+            item.Title,
+            client.Host,
+            action);
     }
 }

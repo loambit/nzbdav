@@ -1,8 +1,8 @@
 import compression from "compression";
 import express from "express";
-import morgan from "morgan";
 import http from "http";
 import { WebSocketServer } from "ws";
+import { logger, requestLogger } from "./server/logger.js";
 
 // Short-circuit the type-checking of the built output.
 const BUILD_PATH = "../build/server/index.js";
@@ -31,6 +31,7 @@ app.use(
   }),
 );
 app.disable("x-powered-by");
+app.use(requestLogger);
 
 // Initialize the websocket server as soon as both it and the server-module are ready
 let _serverModule: any = null;
@@ -48,7 +49,7 @@ const setServerModule = (serverModule: any) => {
 
 // Handle development vs production
 if (DEVELOPMENT) {
-  console.log("Starting development server");
+  logger.info("Starting frontend development server");
   const viteDevServer = await import("vite").then((vite) =>
     vite.createServer({
       server: { middlewareMode: true },
@@ -68,17 +69,11 @@ if (DEVELOPMENT) {
     }
   });
 } else {
-  console.log("Starting production server");
+  logger.info("Starting frontend production server");
   app.use(
     "/assets",
     express.static("build/client/assets", { immutable: true, maxAge: "1y" }),
   );
-  app.use(morgan("tiny", {
-    skip: (req, res) => {
-      return res.statusCode < 400
-        || req.url === "/favicon.ico"
-    }
-  }));
   app.use(express.static("build/client", { maxAge: "1h" }));
   const serverModule = await import(BUILD_PATH);
   app.use(serverModule.app);
@@ -91,5 +86,5 @@ setWebsocketServer(new WebSocketServer({ server }));
 
 // Begin listening for connections
 server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  logger.info(`Frontend server listening on http://localhost:${PORT}`);
 });

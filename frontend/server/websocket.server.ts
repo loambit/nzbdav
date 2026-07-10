@@ -1,6 +1,7 @@
 import WebSocket, { WebSocketServer } from 'ws';
 import { isAuthenticated } from "../app/auth/authentication.server";
 import type { IncomingMessage } from 'http';
+import { logger } from "./logger";
 
 function initializeWebsocketServer(wss: WebSocketServer) {
     // keep track of socket subscriptions
@@ -14,6 +15,7 @@ function initializeWebsocketServer(wss: WebSocketServer) {
         try {
             // ensure user is logged in
             if (!await isAuthenticated(request)) {
+                logger.debug(`Rejected unauthenticated websocket connection from ${request.socket.remoteAddress ?? "unknown IP"}`);
                 ws.close(1008, "Unauthorized");
                 return;
             }
@@ -49,7 +51,7 @@ function initializeWebsocketServer(wss: WebSocketServer) {
                 }
             };
         } catch (error) {
-            console.error("Error authenticating websocket session:", error);
+            logger.error("Error authenticating websocket session", error);
             ws.close(1011, "Internal server error");
             return;
         }
@@ -59,17 +61,37 @@ function initializeWebsocketServer(wss: WebSocketServer) {
 export function initializeWebsocketClient(subscriptions: Map<string, Set<WebSocket>>, lastMessage: Map<string, string>) {
     let reconnectRetryDelay = 1000;
     let reconnectTimeout: NodeJS.Timeout | null = null;
+    let connected = false;
+    let connectionFailures = 0;
+    let lastFailureLogAt = 0;
     const url = getBackendWebsocketUrl();
+
+    function logConnectionFailure(message: string, error?: unknown) {
+        const now = Date.now();
+        connectionFailures += 1;
+        if (connectionFailures === 1 || now - lastFailureLogAt >= 60_000) {
+            logger.warn(`${message}; retrying in ${reconnectRetryDelay} ms`, error);
+            lastFailureLogAt = now;
+        }
+    }
 
     function connect() {
         const socket = new WebSocket(url);
 
         socket.on('error', (error: Error) => {
-            console.error('WebSocket error:', error.message);
+            if (!connected) {
+                logConnectionFailure(`Could not connect to backend websocket at ${url}`, error);
+            } else {
+                logger.warn("Backend websocket error", error);
+            }
         });
 
         socket.onopen = () => {
-            console.info("WebSocket connected");
+            const reconnected = connectionFailures > 0;
+            connected = true;
+            connectionFailures = 0;
+            lastFailureLogAt = 0;
+            logger.info(reconnected ? "Backend websocket reconnected" : "Backend websocket connected");
             if (reconnectTimeout) {
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
@@ -95,12 +117,19 @@ export function initializeWebsocketClient(subscriptions: Map<string, Set<WebSock
                     }
                 });
             } catch (error) {
-                console.error("Ignoring malformed backend WebSocket message:", error);
+                logger.error("Ignoring malformed backend websocket message", error);
             }
         };
 
         socket.onclose = (event: WebSocket.CloseEvent) => {
-            console.info(`WebSocket closed (code: ${event.code}, reason: ${event.reason})`);
+            if (connected) {
+                connected = false;
+                logConnectionFailure(
+                    `Backend websocket closed (code ${event.code}, reason: ${event.reason || "none"})`,
+                );
+            } else if (connectionFailures === 0) {
+                logConnectionFailure(`Could not connect to backend websocket at ${url}`);
+            }
             scheduleReconnect();
         };
     }
@@ -109,7 +138,6 @@ export function initializeWebsocketClient(subscriptions: Map<string, Set<WebSock
         if (reconnectTimeout) clearTimeout(reconnectTimeout);
 
         reconnectTimeout = setTimeout(() => {
-            console.info(`WebSocket reconnecting...`);
             connect();
         }, reconnectRetryDelay);
     }
