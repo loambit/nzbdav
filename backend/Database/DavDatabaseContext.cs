@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.Data.Sqlite;
 using NzbWebDAV.Clients.Rclone;
 using NzbWebDAV.Database.Interceptors;
 using NzbWebDAV.Database.MigrationHelpers;
@@ -18,7 +19,12 @@ public sealed class DavDatabaseContext() : DbContext(Options.Value)
 
     private static readonly Lazy<DbContextOptions<DavDatabaseContext>> Options = new(() =>
         new DbContextOptionsBuilder<DavDatabaseContext>()
-            .UseSqlite($"Data Source={DatabaseFilePath}")
+            .UseSqlite(new SqliteConnectionStringBuilder
+            {
+                DataSource = DatabaseFilePath,
+                DefaultTimeout = 30,
+                Pooling = true
+            }.ToString())
             .AddInterceptors(new SqliteForeignKeyEnabler())
             .ReplaceService<IMigrationsSqlGenerator, SqliteMigrationsSqlGenerator<SqliteMigrationsSqlGenerator>>()
             .Options

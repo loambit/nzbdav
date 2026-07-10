@@ -55,6 +55,11 @@ class Program
 
         // initialize database
         await using var databaseContext = new DavDatabaseContext();
+        await databaseContext.Database
+            .ExecuteSqlRawAsync(
+                "PRAGMA journal_mode = WAL;",
+                SigtermUtil.GetCancellationToken())
+            .ConfigureAwait(false);
 
         // run database migration, if necessary.
         if (args.Contains("--db-migration"))
