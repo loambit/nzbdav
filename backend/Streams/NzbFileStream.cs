@@ -14,7 +14,9 @@ public class NzbFileStream(
     LongRange[]? segmentByteRanges = null
 ) : FastReadOnlyStream
 {
+    private const long MaximumForwardDrainBytes = 1024 * 1024;
     private long _position;
+    private long _pendingForwardDrain;
     private bool _disposed;
     private Stream? _innerStream;
     private readonly LongRange[]? _segmentByteRanges =
@@ -38,8 +40,26 @@ public class NzbFileStream(
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
+        if (buffer.IsEmpty) return 0;
         if (_position >= fileSize) return 0;
         _innerStream ??= await GetFileStream(_position, cancellationToken).ConfigureAwait(false);
+        if (_pendingForwardDrain > 0)
+        {
+            try
+            {
+                await _innerStream.DiscardBytesAsync(
+                    _pendingForwardDrain, cancellationToken).ConfigureAwait(false);
+                _pendingForwardDrain = 0;
+            }
+            catch
+            {
+                await _innerStream.DisposeAsync().ConfigureAwait(false);
+                _innerStream = null;
+                _pendingForwardDrain = 0;
+                throw;
+            }
+        }
+
         var read = await _innerStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
         _position += read;
         return read;
@@ -67,9 +87,19 @@ public class NzbFileStream(
             throw new ArgumentOutOfRangeException(nameof(offset), offset, "Seek position is outside stream bounds.");
 
         if (_position == absoluteOffset) return _position;
+        if (_innerStream is not null &&
+            absoluteOffset > _position &&
+            absoluteOffset - _position <= MaximumForwardDrainBytes)
+        {
+            _pendingForwardDrain += absoluteOffset - _position;
+            _position = absoluteOffset;
+            return _position;
+        }
+
         _position = absoluteOffset;
         _innerStream?.Dispose();
         _innerStream = null;
+        _pendingForwardDrain = 0;
         return _position;
     }
 
