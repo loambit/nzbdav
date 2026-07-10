@@ -2,6 +2,9 @@
   "name": "nzb-webdav",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "react-router build",
     "build:server": "tsc -p tsconfig.node.json --outDir dist-node",
@@ -12,25 +15,25 @@
   "dependencies": {
     "@react-router/express": "^7.14.0",
     "@react-router/fs-routes": "^7.14.0",
-    "@react-router/node": "^7.5.3",
+    "@react-router/node": "^7.14.0",
     "bootstrap": "^5.3.8",
     "compression": "^1.7.5",
-    "express": "^5.2.1",
+    "express": "^5.2.0",
     "http-proxy-middleware": "^3.0.5",
-    "isbot": "^5.1.44",
+    "isbot": "^5.1.0",
     "mime-types": "^3.0.2",
-    "morgan": "^1.11.0",
+    "morgan": "^1.10.0",
     "react": "^19.2.7",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.7",
     "react-dropzone": "^15.0.0",
-    "react-router": "^7.5.3",
+    "react-router": "^7.14.0",
     "remix-auth": "^4.2.0",
     "remix-auth-form": "^3.0.0",
-    "ws": "^8.21.0"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@react-router/dev": "^7.5.3",
+    "@react-router/dev": "^7.14.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/compression": "^1.7.5",
     "@types/express": "^5.0.6",

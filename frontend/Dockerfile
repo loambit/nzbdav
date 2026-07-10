@@ -1,5 +1,5 @@
 # Build the project
-FROM node:alpine AS build-env
+FROM node:24-alpine AS build-env
 WORKDIR /nzb-webdav
 COPY ./ ./
 RUN npm install
@@ -8,7 +8,7 @@ RUN npm run build:server
 RUN npm prune --omit=dev
 
 # Build the production image
-FROM node:alpine
+FROM node:24-alpine
 EXPOSE 3000
 WORKDIR /nzb-webdav
 ENV NODE_ENV=production
