@@ -45,6 +45,7 @@ RUN mkdir /config \
 COPY --from=frontend-build /frontend/node_modules ./frontend/node_modules
 COPY --from=frontend-build /frontend/package.json ./frontend/package.json
 COPY --from=frontend-build /frontend/dist-node/server.js ./frontend/dist-node/server.js
+COPY --from=frontend-build /frontend/dist-node/server ./frontend/dist-node/server
 COPY --from=frontend-build /frontend/build ./frontend/build
 
 # Copy backend
