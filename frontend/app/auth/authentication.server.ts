@@ -10,13 +10,14 @@ type User = {
 };
 
 const oneYear = 60 * 60 * 24 * 365; // seconds
+const sessionKey = process.env.SESSION_KEY ||= crypto.randomBytes(64).toString("hex");
 const sessionStorage = createCookieSessionStorage({
   cookie: {
     name: "__session",
     httpOnly: true,
     path: "/",
     sameSite: "strict",
-    secrets: [process?.env?.SESSION_KEY || crypto.randomBytes(64).toString('hex')],
+    secrets: [sessionKey],
     secure: ["true", "yes"].includes(process?.env?.SECURE_COOKIES || ""),
     maxAge: oneYear,
   },
