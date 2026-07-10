@@ -30,6 +30,20 @@ sudo pacman -S dotnet-sdk aspnet-runtime nodejs npm
 
 ## Build / run backend
 
+### UsenetSharp (GitHub Packages)
+
+The `UsenetSharp` dependency is resolved from GitHub Packages. Before building the backend, authenticate once (credentials are stored in your user-level NuGet config, not in the repo):
+
+```bash
+dotnet nuget add source https://nuget.pkg.github.com/hoivikaj/index.json \
+  --name github \
+  --username hoivikaj \
+  --password <GITHUB_PAT_WITH_read:packages> \
+  --store-password-in-clear-text
+```
+
+If the `github` source already exists locally, use `dotnet nuget update source github` with the same options instead.
+
 ```bash
 cd backend
 
@@ -60,16 +74,17 @@ npm run dev
 
 ### Using Docker CLI
 
-In the root directory, run:
+In the root directory, pass a GitHub token so the backend build can restore `UsenetSharp` from GitHub Packages:
 
 ```bash
-docker build .
+export GITHUB_TOKEN=<GITHUB_PAT_WITH_read:packages>
+docker build --secret id=github_token,env=GITHUB_TOKEN .
 ```
 
 You can also tag the release, which can be used with `docker compose`:
 
 ```bash
-docker build -t example/nzbdav:test_build .
+docker build --secret id=github_token,env=GITHUB_TOKEN -t example/nzbdav:test_build .
 ```
 
 Run the container:

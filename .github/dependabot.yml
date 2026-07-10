@@ -1,5 +1,12 @@
 version: 2
 
+registries:
+  github-hoivikaj:
+    type: nuget-feed
+    url: https://nuget.pkg.github.com/hoivikaj/index.json
+    username: hoivikaj
+    password: ${{secrets.GITHUB_TOKEN}}
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -54,6 +61,8 @@ updates:
 
   - package-ecosystem: "nuget"
     directory: "/backend"
+    registries:
+      - github-hoivikaj
     schedule:
       interval: "monthly"
     commit-message:

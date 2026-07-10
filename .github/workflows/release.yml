@@ -111,3 +111,5 @@ jobs:
           build-args: |
             NZBDAV_VERSION=${{ steps.set_vars.outputs.NZBDAV_VERSION }}
             REPO_URL=https://github.com/${{ github.repository }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}

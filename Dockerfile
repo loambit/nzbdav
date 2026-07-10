@@ -19,7 +19,12 @@ COPY ./backend ./
 
 # Accept build-time architecture as ARG (e.g., x64 or arm64)
 ARG TARGETARCH
-RUN dotnet restore
+RUN --mount=type=secret,id=github_token \
+    dotnet nuget update source github \
+      --username hoivikaj \
+      --password "$(cat /run/secrets/github_token)" \
+      --store-password-in-clear-text \
+    && dotnet restore
 RUN dotnet publish -c Release -r linux-musl-${TARGETARCH} -o ./publish
 
 # -------- Stage 3: Combined runtime image --------
