@@ -1,4 +1,6 @@
 ﻿using MemoryPack;
+using Microsoft.Extensions.Caching.Memory;
+using NzbWebDAV.Database.Models;
 using ZstdSharp;
 
 namespace NzbWebDAV.Database;
@@ -8,6 +10,11 @@ public class BlobStore
     private static readonly int CompressionLevel = 1;
     private static readonly string ConfigPath = DavDatabaseContext.ConfigPath;
     private static readonly Lock LockObj = new();
+    private static readonly MemoryCache MetadataCache = new(new MemoryCacheOptions
+    {
+        // Cache size is measured in segment references, which tracks the dominant memory cost.
+        SizeLimit = 200_000
+    });
 
     private static string GetBlobPath(Guid id)
     {
@@ -40,6 +47,7 @@ public class BlobStore
     {
         await using var fileStream = OpenBlobWrite(id);
         await stream.CopyToAsync(fileStream);
+        MetadataCache.Remove(id);
     }
 
     public static async Task WriteBlob<T>(Guid id, T blob)
@@ -47,6 +55,7 @@ public class BlobStore
         await using var fileStream = OpenBlobWrite(id);
         await using var compressionStream = new CompressionStream(fileStream, CompressionLevel);
         await MemoryPackSerializer.SerializeAsync(compressionStream, blob);
+        MetadataCache.Remove(id);
     }
 
     public static Stream? ReadBlob(Guid id)
@@ -57,15 +66,26 @@ public class BlobStore
 
     public static async Task<T?> ReadBlob<T>(Guid id)
     {
+        if (MetadataCache.TryGetValue(id, out T? cached)) return cached;
+
         var stream = ReadBlob(id);
         if (stream == null) return default;
         await using var fileStream = stream;
         await using var decompressionStream = new DecompressionStream(fileStream);
-        return await MemoryPackSerializer.DeserializeAsync<T>(decompressionStream);
+        var blob = await MemoryPackSerializer.DeserializeAsync<T>(decompressionStream);
+        if (blob is not null)
+        {
+            MetadataCache.Set(id, blob, new MemoryCacheEntryOptions()
+                .SetSize(GetCacheSize(blob))
+                .SetSlidingExpiration(TimeSpan.FromMinutes(10)));
+        }
+
+        return blob;
     }
 
     public static void Delete(Guid id)
     {
+        MetadataCache.Remove(id);
         var blobPath = GetBlobPath(id);
 
         // Delete the file
@@ -97,5 +117,19 @@ public class BlobStore
     private static bool IsDirectoryEmpty(string path)
     {
         return !Directory.EnumerateFileSystemEntries(path).Any();
+    }
+
+    private static int GetCacheSize<T>(T blob)
+    {
+        var segmentCount = blob switch
+        {
+            DavNzbFile nzbFile => nzbFile.SegmentIds.Length,
+            DavRarFile rarFile => rarFile.RarParts.Sum(part => part.SegmentIds.Length),
+            DavMultipartFile multipartFile => multipartFile.Metadata.FileParts
+                .Sum(part => part.SegmentIds.Length),
+            _ => 1
+        };
+
+        return Math.Max(segmentCount, 1);
     }
 }
