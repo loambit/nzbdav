@@ -258,24 +258,30 @@ public class MultiConnectionNntpClient(
             }
 
             T? result;
+            var deferredCallback = new DeferredArticleBodyCallback();
             try
             {
-                result = await command(connectionLock.Connection, OnConnectionReadyAgain).ConfigureAwait(false);
+                result = await command(connectionLock.Connection, deferredCallback.Invoke)
+                    .ConfigureAwait(false);
             }
             catch (Exception e) when (e.IsCancellationException())
             {
+                deferredCallback.Discard();
+                LogException(() => connectionLock?.Replace());
                 LogException(() => connectionLock?.Dispose());
                 LogException(() => onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved));
                 throw;
             }
             catch (Exception e) when (e.TryGetCausingException(out UsenetArticleNotFoundException _))
             {
+                deferredCallback.Discard();
                 LogException(() => connectionLock?.Dispose());
                 LogException(() => onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved));
                 throw;
             }
             catch (Exception e)
             {
+                deferredCallback.Discard();
                 circuitBreaker.RecordFailure();
                 LogException(() => connectionLock?.Replace());
                 LogException(() => connectionLock?.Dispose());
@@ -291,30 +297,45 @@ public class MultiConnectionNntpClient(
                 throw;
             }
 
-            circuitBreaker.RecordSuccess();
-
             // stat, head, and date
             if (name is "STAT" or "HEAD" or "DATE")
             {
+                circuitBreaker.RecordSuccess();
+                deferredCallback.Discard();
                 LogException(() => connectionLock?.Dispose());
             }
             
             // body and article
             else if ((result?.Success ?? false) == false)
             {
+                circuitBreaker.RecordSuccess();
+                deferredCallback.Discard();
                 LogException(() => connectionLock?.Dispose());
                 LogException(() => onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved));
             }
+            else
+            {
+                var callbackInvoked = 0;
+                deferredCallback.Activate(articleBodyResult =>
+                {
+                    if (Interlocked.Exchange(ref callbackInvoked, 1) != 0) return;
+
+                    if (articleBodyResult == ArticleBodyResult.NotRetrieved)
+                    {
+                        circuitBreaker.RecordFailure();
+                        LogException(() => connectionLock?.Replace());
+                    }
+                    else if (articleBodyResult == ArticleBodyResult.Retrieved)
+                    {
+                        circuitBreaker.RecordSuccess();
+                    }
+
+                    LogException(() => connectionLock?.Dispose());
+                    LogException(() => onConnectionReadyAgain?.Invoke(articleBodyResult));
+                });
+            }
 
             return result!;
-
-            void OnConnectionReadyAgain(ArticleBodyResult articleBodyResult)
-            {
-                if (articleBodyResult != ArticleBodyResult.Retrieved) return;
-
-                LogException(() => connectionLock?.Dispose());
-                LogException(() => onConnectionReadyAgain?.Invoke(articleBodyResult));
-            }
         }
 
         Log.Error("Unreachable code reached");

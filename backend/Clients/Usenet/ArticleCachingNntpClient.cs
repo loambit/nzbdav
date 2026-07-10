@@ -31,6 +31,11 @@ public class ArticleCachingNntpClient(
         UsenetYencHeader YencHeaders,
         bool HasArticleHeaders,
         UsenetArticleHeader? ArticleHeaders);
+    private sealed record CachedBatchItem(int Index, string Key, CacheEntry Entry);
+    private sealed record MissingBatchItem(int Index, SegmentId SegmentId);
+    private sealed record BatchCachePartition(
+        IReadOnlyList<CachedBatchItem> Cached,
+        IReadOnlyList<MissingBatchItem> Missing);
 
     public void TrackNzbFiles(IEnumerable<NzbFile> nzbFiles)
     {
@@ -117,15 +122,20 @@ public class ArticleCachingNntpClient(
         Action<ArticleBodyResult>? onConnectionReadyAgain,
         CancellationToken cancellationToken)
     {
-        if (TryCreateCachedBatch(segmentIds, out var cachedBatch))
+        var partition = PartitionBatch(segmentIds);
+        if (partition.Missing.Count == 0)
         {
-            onConnectionReadyAgain?.Invoke(ArticleBodyResult.Retrieved);
-            return cachedBatch;
+            InvokeCompletionCallback(
+                onConnectionReadyAgain, ArticleBodyResult.Retrieved);
+            return MergeBatchForCaching(
+                segmentIds.Count, partition, null, cancellationToken);
         }
 
+        var missingSegmentIds = partition.Missing.Select(item => item.SegmentId).ToArray();
         var batch = await base.DecodedBodiesAsync(
-            segmentIds, onConnectionReadyAgain, cancellationToken).ConfigureAwait(false);
-        return WrapBatchForCaching(segmentIds, batch, cancellationToken);
+            missingSegmentIds, onConnectionReadyAgain, cancellationToken).ConfigureAwait(false);
+        return MergeBatchForCaching(
+            segmentIds.Count, partition, batch, cancellationToken);
     }
 
     public override async Task<UsenetDecodedArticleResponse> DecodedArticleAsync(
@@ -265,15 +275,20 @@ public class ArticleCachingNntpClient(
         CancellationToken cancellationToken
     )
     {
-        if (TryCreateCachedBatch(segmentIds, out var cachedBatch))
+        var partition = PartitionBatch(segmentIds);
+        if (partition.Missing.Count == 0)
         {
-            exclusiveConnection.OnConnectionReadyAgain?.Invoke(ArticleBodyResult.Retrieved);
-            return cachedBatch;
+            InvokeCompletionCallback(
+                exclusiveConnection.OnConnectionReadyAgain, ArticleBodyResult.Retrieved);
+            return MergeBatchForCaching(
+                segmentIds.Count, partition, null, cancellationToken);
         }
 
+        var missingSegmentIds = partition.Missing.Select(item => item.SegmentId).ToArray();
         var batch = await base.DecodedBodiesAsync(
-            segmentIds, exclusiveConnection, cancellationToken).ConfigureAwait(false);
-        return WrapBatchForCaching(segmentIds, batch, cancellationToken);
+            missingSegmentIds, exclusiveConnection, cancellationToken).ConfigureAwait(false);
+        return MergeBatchForCaching(
+            segmentIds.Count, partition, batch, cancellationToken);
     }
 
     public override Task<UsenetDecodedArticleResponse> DecodedArticleAsync
@@ -304,44 +319,94 @@ public class ArticleCachingNntpClient(
             segment.ByteRange = byteRange;
     }
 
-    private UsenetDecodedBodyBatch WrapBatchForCaching(
-        IReadOnlyList<SegmentId> segmentIds,
-        UsenetDecodedBodyBatch batch,
+    private UsenetDecodedBodyBatch MergeBatchForCaching(
+        int responseCount,
+        BatchCachePartition partition,
+        UsenetDecodedBodyBatch? uncachedBatch,
         CancellationToken cancellationToken)
     {
-        var responses = batch.Responses
-            .Select((response, index) => CacheBatchResponseAsync(
-                segmentIds[index], response, cancellationToken))
-            .ToArray();
+        var responses = new Task<UsenetDecodedBodyResponse>[responseCount];
+        foreach (var cached in partition.Cached)
+        {
+            responses[cached.Index] = Task.FromResult(
+                ReadCachedBodyAsync(cached.Key, cached.Entry.YencHeaders));
+        }
+
+        if (uncachedBatch != null)
+        {
+            if (uncachedBatch.Responses.Count != partition.Missing.Count)
+            {
+                throw new InvalidOperationException(
+                    "The NNTP batch response count did not match the request count.");
+            }
+
+            for (var index = 0; index < partition.Missing.Count; index++)
+            {
+                var missing = partition.Missing[index];
+                responses[missing.Index] = CacheBatchResponseAsync(
+                    missing.SegmentId,
+                    uncachedBatch.Responses[index],
+                    cancellationToken);
+            }
+        }
+
+        Task previousCompletion = Task.CompletedTask;
+        for (var index = 0; index < responses.Length; index++)
+        {
+            responses[index] = CompleteInOrderAsync(
+                responses[index], previousCompletion);
+            previousCompletion = responses[index];
+        }
+
         return new UsenetDecodedBodyBatch { Responses = responses };
     }
 
-    private bool TryCreateCachedBatch(
-        IReadOnlyList<SegmentId> segmentIds,
-        out UsenetDecodedBodyBatch batch)
+    private static async Task<UsenetDecodedBodyResponse> CompleteInOrderAsync(
+        Task<UsenetDecodedBodyResponse> response,
+        Task previousCompletion)
     {
-        var cached = new (string Key, CacheEntry Entry)[segmentIds.Count];
+        try
+        {
+            await previousCompletion.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        return await response.ConfigureAwait(false);
+    }
+
+    private BatchCachePartition PartitionBatch(IReadOnlyList<SegmentId> segmentIds)
+    {
+        var cached = new List<CachedBatchItem>(segmentIds.Count);
+        var missing = new List<MissingBatchItem>();
         for (var index = 0; index < segmentIds.Count; index++)
         {
             var key = segmentIds[index].ToString();
-            if (!_cachedSegments.TryGetValue(key, out var cacheEntry))
+            if (_cachedSegments.TryGetValue(key, out var cacheEntry))
             {
-                batch = null!;
-                return false;
+                cached.Add(new CachedBatchItem(index, key, cacheEntry));
             }
-
-            cached[index] = (key, cacheEntry);
+            else
+            {
+                missing.Add(new MissingBatchItem(index, segmentIds[index]));
+            }
         }
 
-        var responses = new Task<UsenetDecodedBodyResponse>[cached.Length];
-        for (var index = 0; index < cached.Length; index++)
+        return new BatchCachePartition(cached, missing);
+    }
+
+    private static void InvokeCompletionCallback(
+        Action<ArticleBodyResult>? callback,
+        ArticleBodyResult result)
+    {
+        try
         {
-            responses[index] = Task.FromResult(
-                ReadCachedBodyAsync(cached[index].Key, cached[index].Entry.YencHeaders));
+            callback?.Invoke(result);
         }
-
-        batch = new UsenetDecodedBodyBatch { Responses = responses };
-        return true;
+        catch
+        {
+        }
     }
 
     private async Task<UsenetDecodedBodyResponse> CacheBatchResponseAsync(

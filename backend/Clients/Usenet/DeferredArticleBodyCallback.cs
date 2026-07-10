@@ -7,6 +7,7 @@ internal sealed class DeferredArticleBodyCallback
     private readonly object _lock = new();
     private Action<ArticleBodyResult>? _target;
     private ArticleBodyResult? _deferredResult;
+    private bool _invoked;
     private bool _discarded;
 
     public void Invoke(ArticleBodyResult result)
@@ -14,7 +15,8 @@ internal sealed class DeferredArticleBodyCallback
         Action<ArticleBodyResult>? target;
         lock (_lock)
         {
-            if (_discarded) return;
+            if (_discarded || _invoked) return;
+            _invoked = true;
             target = _target;
             if (target == null)
             {
@@ -23,7 +25,7 @@ internal sealed class DeferredArticleBodyCallback
             }
         }
 
-        target(result);
+        InvokeSafely(target, result);
     }
 
     public void Activate(Action<ArticleBodyResult> target)
@@ -39,7 +41,7 @@ internal sealed class DeferredArticleBodyCallback
 
         if (deferredResult.HasValue)
         {
-            target(deferredResult.Value);
+            InvokeSafely(target, deferredResult.Value);
         }
     }
 
@@ -50,6 +52,18 @@ internal sealed class DeferredArticleBodyCallback
             _discarded = true;
             _target = null;
             _deferredResult = null;
+        }
+    }
+
+    private static void InvokeSafely(Action<ArticleBodyResult> target, ArticleBodyResult result)
+    {
+        try
+        {
+            target(result);
+        }
+        catch
+        {
+            // Completion callbacks must not fault NNTP transfer tasks.
         }
     }
 }

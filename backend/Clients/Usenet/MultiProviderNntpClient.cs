@@ -60,30 +60,12 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
         CancellationToken cancellationToken
     )
     {
-        UsenetDecodedBodyResponse? result;
-        try
-        {
-            result = await RunFromPoolWithBackup(
-                x => x.DecodedBodyAsync(segmentId, OnConnectionReadyAgain, cancellationToken),
-                cancellationToken
-            ).ConfigureAwait(false);
-        }
-        catch
-        {
-            onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved);
-            throw;
-        }
-
-        if (result.ResponseType != UsenetResponseType.ArticleRetrievedBodyFollows)
-            onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved);
-
-        return result;
-
-        void OnConnectionReadyAgain(ArticleBodyResult articleBodyResult)
-        {
-            if (articleBodyResult == ArticleBodyResult.Retrieved)
-                onConnectionReadyAgain?.Invoke(ArticleBodyResult.Retrieved);
-        }
+        return await RunStreamingFromPoolWithBackup(
+            (provider, callback) =>
+                provider.DecodedBodyAsync(segmentId, callback, cancellationToken),
+            UsenetResponseType.ArticleRetrievedBodyFollows,
+            onConnectionReadyAgain,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public override async Task<UsenetDecodedBodyBatch> DecodedBodiesAsync
@@ -110,14 +92,23 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
                 var fallbackProviders = orderedProviders
                     .Skip(providerIndex + 1)
                     .ToArray();
-                var responses = primaryBatch.Responses
-                    .Select((response, index) => ResolveBatchResponseAsync(
-                        response,
+                var responses =
+                    new Task<UsenetDecodedBodyResponse>[primaryBatch.Responses.Count];
+                Task previousFallbackCompletion = Task.CompletedTask;
+                for (var index = 0; index < responses.Length; index++)
+                {
+                    var fallbackCompletion = new TaskCompletionSource(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    responses[index] = ResolveBatchResponseAsync(
+                        primaryBatch.Responses[index],
                         segmentIds[index],
                         fallbackProviders,
+                        previousFallbackCompletion,
+                        fallbackCompletion,
                         coordinator,
-                        cancellationToken))
-                    .ToArray();
+                        cancellationToken);
+                    previousFallbackCompletion = fallbackCompletion.Task;
+                }
                 return new UsenetDecodedBodyBatch { Responses = responses };
             }
             catch (Exception e) when (!e.IsCancellationException())
@@ -128,12 +119,13 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
             catch
             {
                 deferredCallback.Discard();
-                onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved);
+                InvokeCompletionCallback(
+                    onConnectionReadyAgain, ArticleBodyResult.NotRetrieved);
                 throw;
             }
         }
 
-        onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved);
+        InvokeCompletionCallback(onConnectionReadyAgain, ArticleBodyResult.NotRetrieved);
         lastException?.Throw();
         throw new Exception("There are no usenet providers configured.");
     }
@@ -142,9 +134,12 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
         Task<UsenetDecodedBodyResponse> primaryResponse,
         SegmentId segmentId,
         IReadOnlyList<MultiConnectionNntpClient> fallbackProviders,
+        Task previousFallbackCompletion,
+        TaskCompletionSource fallbackCompletion,
         BatchCallbackCoordinator coordinator,
         CancellationToken cancellationToken)
     {
+        var fallbackCompletionOwnedByTransfer = false;
         try
         {
             UsenetDecodedBodyResponse? response = null;
@@ -169,6 +164,8 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
                 throw new UsenetArticleNotFoundException(segmentId);
             }
 
+            await previousFallbackCompletion.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
             foreach (var provider in fallbackProviders)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -179,10 +176,27 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
                     response = await provider.DecodedBodyAsync(
                         segmentId, deferredCallback.Invoke, cancellationToken).ConfigureAwait(false);
                     var responseType = response.ResponseType;
-                    deferredCallback.Activate(
-                        responseType == UsenetResponseType.ArticleRetrievedBodyFollows
-                            ? coordinator.CompleteTransfer
-                            : _ => coordinator.CompleteAttempt());
+                    if (responseType == UsenetResponseType.ArticleRetrievedBodyFollows)
+                    {
+                        fallbackCompletionOwnedByTransfer = true;
+                        deferredCallback.Activate(result =>
+                        {
+                            try
+                            {
+                                coordinator.CompleteTransfer(result);
+                            }
+                            finally
+                            {
+                                fallbackCompletion.TrySetResult();
+                            }
+                        });
+                    }
+                    else
+                    {
+                        deferredCallback.Discard();
+                        coordinator.CompleteAttempt();
+                    }
+
                     lastException = null;
                 }
                 catch (Exception e) when (!e.IsCancellationException())
@@ -215,6 +229,11 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
         }
         finally
         {
+            if (!fallbackCompletionOwnedByTransfer)
+            {
+                fallbackCompletion.TrySetResult();
+            }
+
             coordinator.CompleteDecision();
         }
     }
@@ -270,11 +289,12 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
                 return;
             }
 
-            callback?.Invoke(
+            InvokeCompletionCallback(
+                callback,
                 Volatile.Read(ref _transportFailed) == 0 &&
                 Volatile.Read(ref _resolutionFailed) == 0
-                ? ArticleBodyResult.Retrieved
-                : ArticleBodyResult.NotRetrieved);
+                    ? ArticleBodyResult.Retrieved
+                    : ArticleBodyResult.NotRetrieved);
         }
     }
 
@@ -285,30 +305,65 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
         CancellationToken cancellationToken
     )
     {
-        UsenetDecodedArticleResponse? result;
-        try
+        return await RunStreamingFromPoolWithBackup(
+            (provider, callback) =>
+                provider.DecodedArticleAsync(segmentId, callback, cancellationToken),
+            UsenetResponseType.ArticleRetrievedHeadAndBodyFollow,
+            onConnectionReadyAgain,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<T> RunStreamingFromPoolWithBackup<T>(
+        Func<INntpClient, Action<ArticleBodyResult>, Task<T>> task,
+        UsenetResponseType successResponseType,
+        Action<ArticleBodyResult>? onConnectionReadyAgain,
+        CancellationToken cancellationToken)
+        where T : UsenetResponse
+    {
+        ExceptionDispatchInfo? lastException = null;
+        var orderedProviders = GetOrderedProviders();
+        for (var index = 0; index < orderedProviders.Count; index++)
         {
-            result = await RunFromPoolWithBackup(
-                x => x.DecodedArticleAsync(segmentId, OnConnectionReadyAgain, cancellationToken),
-                cancellationToken
-            ).ConfigureAwait(false);
-        }
-        catch
-        {
-            onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved);
-            throw;
+            var deferredCallback = new DeferredArticleBodyCallback();
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = await task(orderedProviders[index], deferredCallback.Invoke)
+                    .ConfigureAwait(false);
+                if (result.ResponseType == successResponseType)
+                {
+                    deferredCallback.Activate(onConnectionReadyAgain ?? (_ => { }));
+                    return result;
+                }
+
+                deferredCallback.Discard();
+                if (result.ResponseType == UsenetResponseType.NoArticleWithThatMessageId &&
+                    index < orderedProviders.Count - 1)
+                {
+                    continue;
+                }
+
+                InvokeCompletionCallback(
+                    onConnectionReadyAgain, ArticleBodyResult.NotRetrieved);
+                return result;
+            }
+            catch (Exception e) when (!e.IsCancellationException())
+            {
+                deferredCallback.Discard();
+                lastException = ExceptionDispatchInfo.Capture(e);
+            }
+            catch
+            {
+                deferredCallback.Discard();
+                InvokeCompletionCallback(
+                    onConnectionReadyAgain, ArticleBodyResult.NotRetrieved);
+                throw;
+            }
         }
 
-        if (result.ResponseType != UsenetResponseType.ArticleRetrievedHeadAndBodyFollow)
-            onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved);
-
-        return result;
-
-        void OnConnectionReadyAgain(ArticleBodyResult articleBodyResult)
-        {
-            if (articleBodyResult == ArticleBodyResult.Retrieved)
-                onConnectionReadyAgain?.Invoke(ArticleBodyResult.Retrieved);
-        }
+        InvokeCompletionCallback(onConnectionReadyAgain, ArticleBodyResult.NotRetrieved);
+        lastException?.Throw();
+        throw new Exception("There are no usenet providers configured.");
     }
 
     private async Task<T> RunFromPoolWithBackup<T>
@@ -363,6 +418,20 @@ public class MultiProviderNntpClient(List<MultiConnectionNntpClient> providers) 
 
         // Always return at least one provider so cooldown probes can fire.
         return healthy.Count > 0 ? healthy : enabled;
+    }
+
+    private static void InvokeCompletionCallback(
+        Action<ArticleBodyResult>? callback,
+        ArticleBodyResult result)
+    {
+        try
+        {
+            callback?.Invoke(result);
+        }
+        catch (Exception e)
+        {
+            Log.Warning(e, "NNTP completion callback failed");
+        }
     }
 
     public override void Dispose()
