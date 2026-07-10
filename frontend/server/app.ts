@@ -6,12 +6,6 @@ import { websocketServer } from "./websocket.server";
 import { isAuthenticated } from "~/auth/authentication.server";
 import { authMiddleware } from "~/auth/auth-middleware.server";
 
-declare module "react-router" {
-  interface AppLoadContext {
-    VALUE_FROM_EXPRESS: string;
-  }
-}
-
 export const app = express();
 export const initializeWebsocketServer = websocketServer.initialize;
 
@@ -72,10 +66,5 @@ app.use(authMiddleware);
 app.use(
   createRequestHandler({
     build: () => import("virtual:react-router/server-build"),
-    getLoadContext() {
-      return {
-        VALUE_FROM_EXPRESS: "Hello from Express",
-      };
-    },
   }),
 );
