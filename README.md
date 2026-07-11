@@ -87,6 +87,8 @@ You'll also want to set a username and password for the WebDAV server itself:
 
 ## Documentation
 
+The [0.7.x release announcement](docs/release-announcement.md) summarizes the coordinated stack releases (nzbdav, UsenetSharp, RapidYencSharp, rapidyenc), .NET 10 migration, network performance work, and our audit of upstream issues and PRs.
+
 The [comprehensive setup guide](docs/setup-guide.md) covers everything needed for a full production deployment:
 
 * **Docker Compose** — persistent deployment, container health checks, and updates
