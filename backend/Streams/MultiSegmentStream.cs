@@ -1,6 +1,7 @@
 ﻿using System.Threading.Channels;
 using NzbWebDAV.Clients.Usenet;
 using NzbWebDAV.Clients.Usenet.Contexts;
+using NzbWebDAV.Clients.Usenet.Models;
 using UsenetSharp.Models;
 using UsenetSharp.Streams;
 
@@ -22,12 +23,18 @@ public class MultiSegmentStream : FastReadOnlyNonSeekableStream
         Memory<string> segmentIds,
         INntpClient usenetClient,
         int articleBufferSize,
+        bool usePipelinedBodyRequests,
         CancellationToken cancellationToken
     )
     {
         return articleBufferSize == 0
             ? new UnbufferedMultiSegmentStream(segmentIds, usenetClient)
-            : new MultiSegmentStream(segmentIds, usenetClient, articleBufferSize, cancellationToken);
+            : new MultiSegmentStream(
+                segmentIds,
+                usenetClient,
+                articleBufferSize,
+                usePipelinedBodyRequests,
+                cancellationToken);
     }
 
     private MultiSegmentStream
@@ -35,6 +42,7 @@ public class MultiSegmentStream : FastReadOnlyNonSeekableStream
         Memory<string> segmentIds,
         INntpClient usenetClient,
         int articleBufferSize,
+        bool usePipelinedBodyRequests,
         CancellationToken cancellationToken
     )
     {
@@ -43,51 +51,19 @@ public class MultiSegmentStream : FastReadOnlyNonSeekableStream
         _bodyPipelineBatchSize = Math.Min(BodyPipelineBatchSize, articleBufferSize);
         _streamTasks = Channel.CreateBounded<Task<Stream>>(articleBufferSize);
         _cts = ContextualCancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _ = DownloadSegments(_cts.Token);
+        _ = DownloadSegments(usePipelinedBodyRequests, _cts.Token);
     }
 
-    private async Task DownloadSegments(CancellationToken cancellationToken)
+    private async Task DownloadSegments(
+        bool usePipelinedBodyRequests,
+        CancellationToken cancellationToken)
     {
         try
         {
-            for (var batchStart = 0; batchStart < _segmentIds.Length;)
-            {
-                var batchCount = Math.Min(
-                    _bodyPipelineBatchSize, _segmentIds.Length - batchStart);
-                var segmentIds = new SegmentId[batchCount];
-                for (var index = 0; index < batchCount; index++)
-                {
-                    segmentIds[index] = _segmentIds.Span[batchStart + index];
-                }
-
-                await _streamTasks.Writer.WaitToWriteAsync(cancellationToken);
-                var connection = await _usenetClient.AcquireExclusiveConnectionAsync(
-                    segmentIds, cancellationToken);
-                var batch = await _usenetClient.DecodedBodiesAsync(
-                    segmentIds, connection, cancellationToken).ConfigureAwait(false);
-                var streamTasks = batch.Responses.Select(DownloadSegment).ToArray();
-
-                var responseIndex = 0;
-                try
-                {
-                    for (; responseIndex < streamTasks.Length; responseIndex++)
-                    {
-                        await _streamTasks.Writer.WriteAsync(
-                            streamTasks[responseIndex], cancellationToken);
-                    }
-                }
-                catch
-                {
-                    for (; responseIndex < streamTasks.Length; responseIndex++)
-                    {
-                        _ = DisposeStreamAsync(streamTasks[responseIndex]);
-                    }
-
-                    throw;
-                }
-
-                batchStart += batchCount;
-            }
+            if (usePipelinedBodyRequests)
+                await DownloadPipelinedSegments(cancellationToken).ConfigureAwait(false);
+            else
+                await DownloadIndividualSegments(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -103,6 +79,81 @@ public class MultiSegmentStream : FastReadOnlyNonSeekableStream
         }
 
         return;
+    }
+
+    private async Task DownloadPipelinedSegments(CancellationToken cancellationToken)
+    {
+        for (var batchStart = 0; batchStart < _segmentIds.Length;)
+        {
+            var batchCount = Math.Min(
+                _bodyPipelineBatchSize, _segmentIds.Length - batchStart);
+            var segmentIds = new SegmentId[batchCount];
+            for (var index = 0; index < batchCount; index++)
+            {
+                segmentIds[index] = _segmentIds.Span[batchStart + index];
+            }
+
+            await _streamTasks.Writer.WaitToWriteAsync(cancellationToken);
+            var connection = await _usenetClient.AcquireExclusiveConnectionAsync(
+                segmentIds, cancellationToken);
+            var batch = await _usenetClient.DecodedBodiesAsync(
+                segmentIds, connection, cancellationToken).ConfigureAwait(false);
+            var streamTasks = batch.Responses.Select(DownloadSegment).ToArray();
+
+            var responseIndex = 0;
+            try
+            {
+                for (; responseIndex < streamTasks.Length; responseIndex++)
+                {
+                    await _streamTasks.Writer.WriteAsync(
+                        streamTasks[responseIndex], cancellationToken);
+                }
+            }
+            catch
+            {
+                for (; responseIndex < streamTasks.Length; responseIndex++)
+                {
+                    _ = DisposeStreamAsync(streamTasks[responseIndex]);
+                }
+
+                throw;
+            }
+
+            batchStart += batchCount;
+        }
+    }
+
+    private async Task DownloadIndividualSegments(CancellationToken cancellationToken)
+    {
+        for (var index = 0; index < _segmentIds.Length; index++)
+        {
+            var segmentId = _segmentIds.Span[index];
+            await _streamTasks.Writer.WaitToWriteAsync(cancellationToken);
+            var connection = await _usenetClient.AcquireExclusiveConnectionAsync(
+                segmentId, cancellationToken);
+            var streamTask = DownloadSegment(segmentId, connection, cancellationToken);
+            try
+            {
+                await _streamTasks.Writer.WriteAsync(streamTask, cancellationToken);
+            }
+            catch
+            {
+                _ = DisposeStreamAsync(streamTask);
+                throw;
+            }
+        }
+    }
+
+    private async Task<Stream> DownloadSegment(
+        string segmentId,
+        UsenetExclusiveConnection exclusiveConnection,
+        CancellationToken cancellationToken)
+    {
+        var bodyResponse = await _usenetClient.DecodedBodyAsync(
+            segmentId, exclusiveConnection, cancellationToken).ConfigureAwait(false);
+        return bodyResponse.Stream ??
+            throw new InvalidDataException(
+                $"NNTP BODY failed for segment {bodyResponse.SegmentId}: {bodyResponse.ResponseMessage}");
     }
 
     private static async Task<Stream> DownloadSegment(

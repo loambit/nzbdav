@@ -167,6 +167,13 @@ public class ConfigManager
         );
     }
 
+    public bool IsPipelinedBodyRequestsEnabled()
+    {
+        var configValue = StringUtil.EmptyToNull(
+            GetConfigValue("usenet.pipelined-body-requests"));
+        return configValue == null || bool.Parse(configValue);
+    }
+
     public SemaphorePriorityOdds GetStreamingPriority()
     {
         var stringValue = StringUtil.EmptyToNull(GetConfigValue("usenet.streaming-priority"));

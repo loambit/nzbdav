@@ -120,21 +120,36 @@ public abstract class NntpClient : INntpClient
         return headers!.PartOffset + headers!.PartSize;
     }
 
-    public virtual async Task<NzbFileStream> GetFileStream(NzbFile nzbFile, int articleBufferSize, CancellationToken ct)
+    public virtual async Task<NzbFileStream> GetFileStream(
+        NzbFile nzbFile,
+        int articleBufferSize,
+        CancellationToken ct,
+        bool usePipelinedBodyRequests = true)
     {
         var segmentIds = nzbFile.GetSegmentIds();
         var fileSize = await GetFileSizeAsync(nzbFile, ct).ConfigureAwait(false);
-        return new NzbFileStream(segmentIds, fileSize, this, articleBufferSize, nzbFile.GetSegmentByteRanges());
+        return new NzbFileStream(
+            segmentIds,
+            fileSize,
+            this,
+            articleBufferSize,
+            nzbFile.GetSegmentByteRanges(),
+            usePipelinedBodyRequests);
     }
 
-    public virtual NzbFileStream GetFileStream(NzbFile nzbFile, long fileSize, int articleBufferSize)
+    public virtual NzbFileStream GetFileStream(
+        NzbFile nzbFile,
+        long fileSize,
+        int articleBufferSize,
+        bool usePipelinedBodyRequests = true)
     {
         return new NzbFileStream(
             nzbFile.GetSegmentIds(),
             fileSize,
             this,
             articleBufferSize,
-            nzbFile.GetSegmentByteRanges()
+            nzbFile.GetSegmentByteRanges(),
+            usePipelinedBodyRequests
         );
     }
 
@@ -142,9 +157,16 @@ public abstract class NntpClient : INntpClient
         string[] segmentIds,
         long fileSize,
         int articleBufferSize,
-        LongRange[]? segmentByteRanges = null)
+        LongRange[]? segmentByteRanges = null,
+        bool usePipelinedBodyRequests = true)
     {
-        return new NzbFileStream(segmentIds, fileSize, this, articleBufferSize, segmentByteRanges);
+        return new NzbFileStream(
+            segmentIds,
+            fileSize,
+            this,
+            articleBufferSize,
+            segmentByteRanges,
+            usePipelinedBodyRequests);
     }
 
     public virtual async Task CheckAllSegmentsAsync

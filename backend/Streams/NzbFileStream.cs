@@ -11,7 +11,8 @@ public class NzbFileStream(
     long fileSize,
     INntpClient usenetClient,
     int articleBufferSize,
-    LongRange[]? segmentByteRanges = null
+    LongRange[]? segmentByteRanges = null,
+    bool usePipelinedBodyRequests = true
 ) : FastReadOnlyStream
 {
     private const long MaximumForwardDrainBytes = 1024 * 1024;
@@ -155,7 +156,12 @@ public class NzbFileStream(
     private Stream GetMultiSegmentStream(int firstSegmentIndex, CancellationToken cancellationToken)
     {
         var segmentIds = fileSegmentIds.AsMemory()[firstSegmentIndex..];
-        return MultiSegmentStream.Create(segmentIds, usenetClient, articleBufferSize, cancellationToken);
+        return MultiSegmentStream.Create(
+            segmentIds,
+            usenetClient,
+            articleBufferSize,
+            usePipelinedBodyRequests,
+            cancellationToken);
     }
 
     protected override void Dispose(bool disposing)

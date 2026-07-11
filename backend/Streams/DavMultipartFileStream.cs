@@ -8,7 +8,8 @@ namespace NzbWebDAV.Streams;
 public class DavMultipartFileStream(
     DavMultipartFile.FilePart[] fileParts,
     INntpClient usenetClient,
-    int articleBufferSize
+    int articleBufferSize,
+    bool usePipelinedBodyRequests
 ) : Stream
 {
     private long _position = 0;
@@ -117,7 +118,8 @@ public class DavMultipartFileStream(
                     x.SegmentIds,
                     x.SegmentIdByteRange.Count,
                     articleBufferSize,
-                    x.SegmentByteRanges
+                    x.SegmentByteRanges,
+                    usePipelinedBodyRequests
                 );
                 stream.Seek(x.FilePartByteRange.StartInclusive + offset, SeekOrigin.Begin);
                 return Task.FromResult(stream.LimitLength(x.FilePartByteRange.Count - offset));

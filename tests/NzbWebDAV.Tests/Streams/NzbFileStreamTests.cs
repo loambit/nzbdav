@@ -41,6 +41,34 @@ public class NzbFileStreamTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Create_UsesConfiguredBodyRequestApi(
+        bool usePipelinedBodyRequests)
+    {
+        var client = CreateClient();
+        await using var stream = MultiSegmentStream.Create(
+            SegmentIds.AsMemory(),
+            client,
+            articleBufferSize: 4,
+            usePipelinedBodyRequests: usePipelinedBodyRequests,
+            cancellationToken: CancellationToken.None);
+
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (usePipelinedBodyRequests
+                    ? client.BatchRequestCount > 0
+                    : client.BodyRequestCount == SegmentIds.Length)
+                break;
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(usePipelinedBodyRequests, client.BatchRequestCount > 0);
+        if (!usePipelinedBodyRequests)
+            Assert.Equal(SegmentIds.Length, client.BodyRequestCount);
+    }
+
+    [Theory]
     [InlineData(0, "abc")]
     [InlineData(4, "efg")]
     [InlineData(5, "fgh")]

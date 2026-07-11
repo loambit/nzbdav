@@ -40,7 +40,8 @@ public class DatabaseStoreMultipartFile(
         var packedStream = new DavMultipartFileStream(
             multipartFile.Metadata.FileParts,
             usenetClient,
-            configManager.GetArticleBufferSize()
+            configManager.GetArticleBufferSize(),
+            configManager.IsPipelinedBodyRequestsEnabled()
         );
 
         return multipartFile.Metadata.AesParams != null
