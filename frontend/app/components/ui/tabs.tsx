@@ -18,7 +18,7 @@ export function Tabs<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div role="tablist" className="no-scrollbar flex overflow-x-auto border-b border-gray-200/10">
+    <div role="tablist" className="flex flex-wrap border-b border-gray-200/10">
       {options.map((option) => {
         const active = option.id === value;
         return (

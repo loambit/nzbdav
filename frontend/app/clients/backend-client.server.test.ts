@@ -69,8 +69,8 @@ describe("BackendClient", () => {
     await expect(backendClient.getQueue(25)).resolves.toEqual(queue);
     await expect(backendClient.getHistory(10)).resolves.toEqual(history);
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "http://backend/api?mode=queue&limit=25",
-      "http://backend/api?mode=history&pageSize=10",
+      "http://backend/api?mode=queue&start=0&limit=25",
+      "http://backend/api?mode=history&start=0&pageSize=10",
     ]);
   });
 
@@ -129,6 +129,72 @@ describe("BackendClient", () => {
       "http://backend/api/get-health-check-queue?pageSize=30",
       "http://backend/api/get-health-check-history",
     ]);
+  });
+
+  it("gets overview stats and filtered logs", async () => {
+    const overview = { window: "7d", tiles: {} };
+    const logs = { entries: [], hasMore: false };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse(logs));
+
+    await expect(backendClient.getOverviewStats("7d")).resolves.toEqual(overview);
+    await expect(backendClient.getLogs({
+      limit: 50,
+      levels: ["Warning", "Error"],
+      source: "Queue",
+      search: "failed request",
+      beforeSequence: 42,
+    })).resolves.toEqual(logs);
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "http://backend/api/get-overview-stats?window=7d",
+      "http://backend/api/get-logs?limit=50&levels=Warning%2CError&source=Queue&search=failed+request&beforeSequence=42",
+    ]);
+  });
+
+  it("searches indexers with the requested result limit", async () => {
+    const results = { results: [], errors: [] };
+    fetchMock.mockResolvedValueOnce(jsonResponse(results));
+
+    await expect(backendClient.searchIndexers("Example Movie", 25)).resolves.toEqual(results);
+    const [url, init] = fetchMock.mock.calls[0];
+    const form = init?.body as FormData;
+
+    expect(url).toBe("http://backend/api/search-indexers");
+    expect(init?.method).toBe("POST");
+    expect(form.get("q")).toBe("Example Movie");
+    expect(form.get("limit")).toBe("25");
+  });
+
+  it("queries and mutates watchtower state", async () => {
+    const data = { items: [], total: 0 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(data))
+      .mockResolvedValueOnce(jsonResponse({ status: true }));
+
+    await expect(backendClient.getWatchtower({
+      state: "ready",
+      q: "Example",
+      sort: "updated",
+      offset: 20,
+      limit: 10,
+      expander: "episodes",
+      statsOnly: true,
+    })).resolves.toEqual(data);
+    await expect(backendClient.watchtowerMutate({
+      action: "park",
+      id: "wanted-1",
+    })).resolves.toBe(true);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "http://backend/api/get-watchtower?state=ready&q=Example&sort=updated&offset=20&limit=10&expander=episodes&statsOnly=1",
+    );
+    const mutation = fetchMock.mock.calls[1][1];
+    expect(Object.fromEntries((mutation?.body as FormData).entries())).toEqual({
+      action: "park",
+      id: "wanted-1",
+    });
   });
 
   it("includes the backend error when a request fails", async () => {

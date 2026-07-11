@@ -6,36 +6,43 @@ import { Icon } from "~/components/ui"
 export type ItemMenuProps = {
     className?: string
     openClassName?: string
-    exploreFile: ExploreFile,
-    previewPath: string,
+    exploreFile?: ExploreFile,
+    previewPath?: string,
+    onRemove?: () => void,
 }
 
-export function ItemMenu({ className, openClassName, exploreFile, previewPath }: ItemMenuProps): ReactNode {
+export function ItemMenu({ className, openClassName, exploreFile, previewPath, onRemove }: ItemMenuProps): ReactNode {
     const [isOpen, setIsOpen] = useState(false);
-    const exportNzbUrl = `/api/download-nzb?nzbBlobId=${exploreFile.nzbBlobId}`;
-    const downloadUrl = `${previewPath}&download=true`;
+    const exportNzbUrl = exploreFile ? `/api/download-nzb?nzbBlobId=${exploreFile.nzbBlobId}` : undefined;
+    const downloadUrl = previewPath ? `${previewPath}&download=true` : undefined;
 
     const onClick = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
         e.stopPropagation();
         setIsOpen(x => !x);
     }, []);
+
+    const options = [
+        previewPath ? { option: <Preview />, linkTo: previewPath } : undefined,
+        downloadUrl ? { option: <Download />, linkTo: downloadUrl } : undefined,
+        exploreFile?.nzbBlobId && exportNzbUrl ? { option: <ExportNzb />, linkTo: exportNzbUrl } : undefined,
+        onRemove ? { option: <Remove />, variant: "danger" as const, onSelect: onRemove } : undefined,
+    ].filter(Boolean);
+
+    if (options.length === 0) return null;
 
     return (
         <>
             <button
                 type="button"
-                aria-label={`Actions for ${exploreFile.name}`}
+                aria-label={exploreFile ? `Actions for ${exploreFile.name}` : "Item actions"}
                 aria-expanded={isOpen}
                 className={`flex shrink-0 select-none items-center self-stretch rounded-r-lg px-4 text-slate-400 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15 ${isOpen ? `bg-white/10 text-white ${openClassName ?? ""}` : ""} ${className ?? ""}`}
                 onClick={onClick}
             >
                 <Icon name="more_horiz" className="!text-[24px]" />
             </button>
-            <DropdownOptions isOpen={isOpen} onClose={() => setIsOpen(false)} options={[
-                { option: <Preview />, linkTo: previewPath },
-                { option: <Download />, linkTo: downloadUrl },
-                !!exploreFile.nzbBlobId ? { option: <ExportNzb />, linkTo: exportNzbUrl } : undefined
-            ]} />
+            <DropdownOptions isOpen={isOpen} onClose={() => setIsOpen(false)} options={options} />
         </>
     );
 }

@@ -27,6 +27,21 @@ export function WebdavSettings({ config, setNewConfig }: SabnzbdSettingsProps) {
             </div>
             <hr />
             <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-200" htmlFor="max-queue-connections-input">Queue Download Connections</label>
+                <Input
+                    {...className(['w-full', !isValidMaxQueueConnections(config["usenet.max-queue-connections"]) && 'border-red-500 focus:border-red-500'])}
+                    type="text"
+                    id="max-queue-connections-input"
+                    aria-describedby="max-queue-connections-help"
+                    placeholder="Auto (all connections)"
+                    value={config["usenet.max-queue-connections"]}
+                    onChange={e => setNewConfig({ ...config, "usenet.max-queue-connections": e.target.value })} />
+                <p className="text-xs leading-relaxed text-slate-400" id="max-queue-connections-help">
+                    Connections available to queue imports. Leave blank to use all provider connections.
+                </p>
+            </div>
+            <hr />
+            <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-200" htmlFor="webdav-pass-input">WebDAV Password</label>
                 <Input
                     className={'w-full'}
@@ -38,6 +53,40 @@ export function WebdavSettings({ config, setNewConfig }: SabnzbdSettingsProps) {
                 <p className="text-xs leading-relaxed text-slate-400" id="webdav-pass-help">
                     Use this password to connect to the webdav.
                 </p>
+            </div>
+            <hr />
+            <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                    <Checkbox
+                        id="segment-cache-enabled-checkbox"
+                        aria-describedby="segment-cache-enabled-help"
+                        checked={config["usenet.segment-cache.enabled"] === "true"}
+                        onChange={e => setNewConfig({ ...config, "usenet.segment-cache.enabled": String(e.target.checked) })} />
+                    <span>Enable Segment Cache</span>
+                </label>
+                <p className="text-xs leading-relaxed text-slate-400" id="segment-cache-enabled-help">
+                    Cache decoded segments on disk so repeat reads and seeks avoid provider traffic. Takes effect after restart.
+                </p>
+                {config["usenet.segment-cache.enabled"] === "true" && (
+                    <div className="grid gap-4 border-l border-slate-700 pl-4 sm:grid-cols-2">
+                        <label className="space-y-2 text-sm text-slate-300">
+                            <span>Cache path</span>
+                            <Input
+                                className={`w-full ${!isValidSegmentCachePath(config["usenet.segment-cache.path"]) ? "border-red-500" : ""}`}
+                                value={config["usenet.segment-cache.path"]}
+                                placeholder="/config/segment-cache"
+                                onChange={e => setNewConfig({ ...config, "usenet.segment-cache.path": e.target.value })} />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-300">
+                            <span>Maximum size (GB)</span>
+                            <Input
+                                className={`w-full ${!isPositiveInteger(config["usenet.segment-cache.max-gb"]) ? "border-red-500" : ""}`}
+                                inputMode="numeric"
+                                value={config["usenet.segment-cache.max-gb"]}
+                                onChange={e => setNewConfig({ ...config, "usenet.segment-cache.max-gb": e.target.value })} />
+                        </label>
+                    </div>
+                )}
             </div>
             <hr />
             <div className="space-y-2">
@@ -152,19 +201,32 @@ export function isWebdavSettingsUpdated(config: Record<string, string>, newConfi
     return config["webdav.user"] !== newConfig["webdav.user"]
         || config["webdav.pass"] !== newConfig["webdav.pass"]
         || config["usenet.max-download-connections"] !== newConfig["usenet.max-download-connections"]
+        || config["usenet.max-queue-connections"] !== newConfig["usenet.max-queue-connections"]
         || config["usenet.streaming-priority"] !== newConfig["usenet.streaming-priority"]
         || config["usenet.article-buffer-size"] !== newConfig["usenet.article-buffer-size"]
         || config["usenet.pipelined-body-requests"] !== newConfig["usenet.pipelined-body-requests"]
         || config["webdav.show-hidden-files"] !== newConfig["webdav.show-hidden-files"]
         || config["webdav.enforce-readonly"] !== newConfig["webdav.enforce-readonly"]
         || config["webdav.preview-par2-files"] !== newConfig["webdav.preview-par2-files"]
+        || config["usenet.segment-cache.enabled"] !== newConfig["usenet.segment-cache.enabled"]
+        || config["usenet.segment-cache.path"] !== newConfig["usenet.segment-cache.path"]
+        || config["usenet.segment-cache.max-gb"] !== newConfig["usenet.segment-cache.max-gb"]
 }
 
 export function isWebdavSettingsValid(newConfig: Record<string, string>) {
+    const segmentCacheValid = newConfig["usenet.segment-cache.enabled"] !== "true"
+        || (isValidSegmentCachePath(newConfig["usenet.segment-cache.path"])
+            && isPositiveInteger(newConfig["usenet.segment-cache.max-gb"]));
     return isValidUser(newConfig["webdav.user"])
         && isValidMaxDownloadConnections(newConfig["usenet.max-download-connections"])
+        && isValidMaxQueueConnections(newConfig["usenet.max-queue-connections"])
         && isValidStreamingPriority(newConfig["usenet.streaming-priority"])
-        && isValidArticleBufferSize(newConfig["usenet.article-buffer-size"]);
+        && isValidArticleBufferSize(newConfig["usenet.article-buffer-size"])
+        && segmentCacheValid;
+}
+
+function isValidSegmentCachePath(value: string): boolean {
+    return value.trim().length > 0;
 }
 
 function isValidUser(user: string): boolean {
@@ -174,6 +236,10 @@ function isValidUser(user: string): boolean {
 
 function isValidMaxDownloadConnections(value: string): boolean {
     return isPositiveInteger(value);
+}
+
+function isValidMaxQueueConnections(value: string): boolean {
+    return value.trim() === "" || isPositiveInteger(value);
 }
 
 function isValidStreamingPriority(value: string): boolean {

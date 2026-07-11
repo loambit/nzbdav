@@ -1,24 +1,37 @@
 import { Form, Link, useLocation, useNavigation } from "react-router";
 import type React from "react";
 import { LiveUsenetConnections } from "../live-usenet-connections/live-usenet-connections";
+import { LiveReads } from "../live-reads/live-reads";
 import { Icon } from "~/components/ui";
 
 export type LeftNavigationProps = {
     version?: string,
     isFrontendAuthDisabled?: boolean,
     hasUsenetProviders?: boolean,
+    isWatchdogEnabled?: boolean,
 }
 
-export function LeftNavigation({ version, isFrontendAuthDisabled, hasUsenetProviders }: LeftNavigationProps) {
+export function LeftNavigation({
+    version,
+    isFrontendAuthDisabled,
+    hasUsenetProviders,
+    isWatchdogEnabled,
+}: LeftNavigationProps) {
     return (
         <div className="flex h-full flex-col px-3 py-5 text-slate-400">
             <nav className="flex flex-col gap-1">
-                <Item target="/queue" icon="list_alt">Queue & History</Item>
-                <Item target="/explore" icon="folder_open">DAV Explore</Item>
+                <Item target="/overview" icon="dashboard">Overview</Item>
+                <Item target="/queue" icon="list_alt">Queue</Item>
+                {isWatchdogEnabled && <Item target="/watchdog" icon="monitor_heart">Watchdog</Item>}
+                <Item target="/watchtower" icon="cell_tower">Watchtower</Item>
+                <Item target="/explore" icon="folder_open">Files</Item>
                 <Item target="/health" icon="health_and_safety">Health</Item>
+                <Item target="/logs" icon="description">Logs</Item>
+                <Item target="/search" icon="search">Search</Item>
                 <Item target="/settings" icon="settings">Settings</Item>
             </nav>
             <LiveUsenetConnections hasUsenetProviders={!!hasUsenetProviders} />
+            <LiveReads />
 
             <footer className="mt-auto border-t border-slate-800 pt-4 text-xs text-slate-500">
                 <div className="mb-3 flex items-center gap-3">

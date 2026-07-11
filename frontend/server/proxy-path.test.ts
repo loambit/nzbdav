@@ -18,6 +18,9 @@ describe("shouldProxyToBackend", () => {
     "/nzbs/file.nzb",
     "/content/file.mkv",
     "/completed-symlinks/movie",
+    "/p/profile-token/play/item.mkv",
+    "/adapters/addon/profile-token/manifest.json",
+    "/adapters/newznab/profile-token/api",
   ])("proxies backend path %s", (path) => {
     expect(shouldProxyToBackend("GET", path)).toBe(true);
   });

@@ -1,0 +1,23 @@
+declare const styles: {
+  readonly "container": string;
+  readonly "section": string;
+  readonly "sectionHeader": string;
+  readonly "instanceCard": string;
+  readonly "closeButton": string;
+  readonly "input": string;
+  readonly "alertMessage": string;
+  readonly "urlBox": string;
+  readonly "urlInput": string;
+  readonly "hint": string;
+  readonly "adapterGroup": string;
+  readonly "adapterRow": string;
+  readonly "disabled": string;
+  readonly "adapterHeader": string;
+  readonly "adapterTitle": string;
+  readonly "adapterName": string;
+  readonly "adapterDescription": string;
+  readonly "fallbackThresholdRow": string;
+  readonly "fallbackThresholdLabel": string;
+  readonly "fallbackThresholdInput": string;
+};
+export = styles;

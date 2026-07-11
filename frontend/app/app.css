@@ -22,6 +22,39 @@
     --app-success-hover: #10b981;
     --app-warning: #d97706;
     --app-danger: #dc2626;
+
+    /* Compatibility aliases for ported feature CSS modules. */
+    --top-nav-height: 60px;
+    --left-nav-width: 260px;
+    --page-padding: 25px;
+    --bg-base: var(--app-bg);
+    --bg-elevated: var(--app-bg-soft);
+    --bg-surface: var(--app-surface);
+    --bg-surface-2: var(--app-surface-muted);
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(255, 255, 255, 0.1);
+    --bg-selected: var(--app-accent-soft);
+    --border-subtle: color-mix(in srgb, var(--app-border-soft) 70%, transparent);
+    --border-default: var(--app-border-soft);
+    --border-strong: var(--app-border);
+    --text-primary: var(--app-text);
+    --text-secondary: var(--app-text-muted);
+    --text-muted: var(--app-text-faint);
+    --text-faint: color-mix(in srgb, var(--app-text-faint) 70%, transparent);
+    --accent: var(--app-accent);
+    --accent-muted: var(--app-accent-hover);
+    --success: var(--app-success-hover);
+    --warning: var(--app-warning);
+    --danger: var(--app-danger);
+    --danger-muted: #f87171;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --body-background-color: var(--app-bg);
+    --top-nav-background-color: var(--app-bg);
+    --left-nav-background-color: var(--app-bg);
   }
 
   * {
@@ -86,7 +119,43 @@
   }
 
   .form-select {
-    @apply rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500;
+    @apply rounded border border-slate-700 bg-slate-900 py-1 pl-2 pr-8 text-xs text-slate-200 outline-none focus:border-blue-500;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+  }
+
+  select:not([multiple]) {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+    padding-right: 2rem;
+  }
+
+  input[type="checkbox"]:not(.sr-only) {
+    @apply h-4 w-4 shrink-0 cursor-pointer rounded border border-slate-600 bg-slate-950 transition-colors;
+    appearance: none;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 0.75rem;
+  }
+
+  input[type="checkbox"]:not(.sr-only):checked {
+    border-color: var(--app-accent);
+    background-color: var(--app-accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 4 4L19 6'/%3E%3C/svg%3E");
+  }
+
+  input[type="checkbox"]:not(.sr-only):focus-visible {
+    @apply outline-none ring-2 ring-blue-400 ring-offset-2 ring-offset-slate-900;
+  }
+
+  input[type="checkbox"]:not(.sr-only):disabled {
+    @apply cursor-not-allowed opacity-60;
   }
 
   .surface-card {

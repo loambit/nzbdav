@@ -23,15 +23,20 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (path === "/login") return { useLayout: false };
   if (path === "/onboarding") return { useLayout: false };
 
-  const providerConfig = await backendClient.getConfig(["usenet.providers"]);
+  const config = await backendClient.getConfig([
+    "usenet.providers",
+    "play.watchdog-enabled",
+  ]);
 
   return {
     useLayout: true,
     version: await getAppVersion(),
     isFrontendAuthDisabled: IS_FRONTEND_AUTH_DISABLED,
     hasUsenetProviders: hasConfiguredUsenetProviders(
-      providerConfig.find(item => item.configName === "usenet.providers")?.configValue
+      config.find(item => item.configName === "usenet.providers")?.configValue
     ),
+    isWatchdogEnabled:
+      config.find(item => item.configName === "play.watchdog-enabled")?.configValue?.toLowerCase() !== "false",
   };
 }
 
@@ -54,6 +59,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/logo.svg" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
         <Meta />
         <Links />
       </head>
@@ -67,7 +75,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { useLayout, version, isFrontendAuthDisabled, hasUsenetProviders } = loaderData;
+  const {
+    useLayout,
+    version,
+    isFrontendAuthDisabled,
+    hasUsenetProviders,
+    isWatchdogEnabled,
+  } = loaderData;
   const location = useLocation();
   const navigation = useNavigation();
   const isNavigating = Boolean(navigation.location);
@@ -87,7 +101,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
           <LeftNavigation
             version={version}
             isFrontendAuthDisabled={isFrontendAuthDisabled}
-            hasUsenetProviders={hasUsenetProviders} />
+            hasUsenetProviders={hasUsenetProviders}
+            isWatchdogEnabled={isWatchdogEnabled} />
         } />
     );
   }

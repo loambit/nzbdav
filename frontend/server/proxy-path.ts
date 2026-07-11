@@ -5,6 +5,8 @@ const BACKEND_PATH_PREFIXES = [
   "/nzbs",
   "/content",
   "/completed-symlinks",
+  "/p/",
+  "/adapters/",
 ];
 
 export function shouldProxyToBackend(method: string, pathname: string): boolean {

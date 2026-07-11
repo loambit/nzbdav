@@ -5,6 +5,7 @@ import type { PresentationQueueSlot } from "../../route"
 import type { TriCheckboxState } from "../tri-checkbox/tri-checkbox"
 import { PageRow, PageTable } from "../page-table/page-table"
 import { PageSection } from "../page-section/page-section"
+import { Pagination } from "../pagination/pagination"
 import { EmptyQueue } from "../empty-queue/empty-queue"
 import { SimpleDropdown } from "../simple-dropdown/simple-dropdown"
 import { WideViewport } from "../wide-viewport/wide-viewport"
@@ -14,6 +15,10 @@ import { Tooltip } from "~/components/ui"
 export type QueueTableProps = {
     queueSlots: PresentationQueueSlot[],
     totalQueueCount: number,
+    pageNumber: number,
+    totalPages: number,
+    isLive: boolean,
+    onPageSelected: (page: number) => void,
     categories: string[],
     manualCategoryRef: React.RefObject<string>,
     onIsSelectedChanged: (nzo_ids: Set<string>, isSelected: boolean) => void,
@@ -25,6 +30,10 @@ export type QueueTableProps = {
 export function QueueTable({
     queueSlots,
     totalQueueCount,
+    pageNumber,
+    totalPages,
+    isLive,
+    onPageSelected,
     categories,
     manualCategoryRef,
     onIsSelectedChanged,
@@ -121,12 +130,19 @@ export function QueueTable({
         </ThinViewport>
     );
 
+    const footer = totalPages > 1 ? (
+        <div className="flex flex-col items-center gap-2 text-xs text-slate-400">
+            {!isLive && <span>Live updates pause on older pages. Go to page 1 for live.</span>}
+            <Pagination pageNumber={pageNumber} totalPages={totalPages} onPageSelected={onPageSelected} />
+        </div>
+    ) : undefined;
+
     return (
         <PageSection title={sectionTitle} subTitle={sectionSubTitle}>
             {queueSlots?.length == 0 ? (
                 <EmptyQueue onUploadClicked={onUploadClicked} />
             ) : (
-                <PageTable headerCheckboxState={headerCheckboxState} onHeaderCheckboxChange={onSelectAll}>
+                <PageTable headerCheckboxState={headerCheckboxState} onHeaderCheckboxChange={onSelectAll} footer={footer}>
                     {queueSlots.map(slot =>
                         <QueueRow
                             key={slot.nzo_id}
@@ -210,6 +226,8 @@ export const QueueRow = memo(({ slot, onIsSelectedChanged, onIsRemovingChanged, 
                 actions={<ActionButton type="delete" disabled={!!slot.isRemoving || isActivelyUploading} onClick={onRemove} />}
                 onRowSelectionChanged={isSelected => onIsSelectedChanged(slot.nzo_id, isSelected)}
                 error={slot.error}
+                indexer={slot.indexer}
+                providers={slot.providers}
             />
             <ConfirmModal
                 show={isConfirmingRemoval}

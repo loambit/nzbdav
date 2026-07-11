@@ -120,6 +120,9 @@ export default function Index({ loaderData, actionData }: Route.ComponentProps) 
                     {isLoading && <Spinner className="text-white" />}
                     {submitButtonText}
                 </Button>
+                <p className="text-center text-xs text-slate-500">
+                    First-time setup · this account becomes the administrator
+                </p>
             </Form>
         </main>
     );

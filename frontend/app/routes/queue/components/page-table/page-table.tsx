@@ -1,9 +1,13 @@
+import styles from "./page-table.module.css";
 import type { ReactNode } from "react";
 import { TriCheckbox, type TriCheckboxState } from "../tri-checkbox/tri-checkbox";
 import { Truncate } from "../truncate/truncate";
 import { StatusBadge } from "../status-badge/status-badge";
 import { formatFileSize } from "~/utils/file-size";
-import { Badge } from "~/components/ui";
+import type { ProviderUsage } from "~/clients/backend-client.server";
+
+const desktopHeaderClass = "hidden w-[120px] bg-slate-900 px-1 py-4 text-center text-xs font-semibold tracking-wide text-slate-200 min-[900px]:table-cell";
+const desktopCellClass = "hidden max-w-[200px] whitespace-nowrap border-b border-white/5 px-1 py-3 text-center align-middle text-slate-300 min-[900px]:table-cell";
 
 export type PageTableProps = {
     children?: ReactNode,
@@ -23,10 +27,12 @@ export function PageTable({ children, headerCheckboxState, onHeaderCheckboxChang
                                 Name
                             </TriCheckbox>
                         </th>
-                        <th className="hidden w-[100px] bg-slate-900 px-0 py-4 text-center text-xs font-semibold tracking-wide text-slate-200 min-[900px]:table-cell">Category</th>
-                        <th className="hidden w-[100px] bg-slate-900 px-0 py-4 text-center text-xs font-semibold tracking-wide text-slate-200 min-[900px]:table-cell">Status</th>
-                        <th className="hidden w-[100px] bg-slate-900 px-0 py-4 text-center text-xs font-semibold tracking-wide text-slate-200 min-[900px]:table-cell">Size</th>
-                        <th className="w-[100px] bg-slate-900 px-0 py-4 text-center text-xs font-semibold tracking-wide text-slate-200">Actions</th>
+                        <th className={desktopHeaderClass}>Category</th>
+                        <th className={desktopHeaderClass}>Indexer</th>
+                        <th className={desktopHeaderClass}>Provider</th>
+                        <th className={desktopHeaderClass}>Status</th>
+                        <th className={desktopHeaderClass}>Size</th>
+                        <th className="w-[100px] bg-slate-900 px-1 py-4 text-center text-xs font-semibold text-slate-200">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -51,6 +57,8 @@ export type PageRowProps = {
     error?: string,
     fileSizeBytes: number,
     actions: ReactNode,
+    indexer?: string | null,
+    providers?: ProviderUsage[] | null,
     onRowSelectionChanged: (isSelected: boolean) => void
 }
 export function PageRow(props: PageRowProps) {
@@ -63,6 +71,8 @@ export function PageRow(props: PageRowProps) {
                         <div className="mb-1 mt-1 flex gap-2.5">
                             <StatusBadge status={props.status} percentage={props.percentage} error={props.error} />
                             <CategoryBadge category={props.category} />
+                            {props.indexer && <IndexerBadge indexer={props.indexer} />}
+                            {props.providers && props.providers.length > 0 && <ProvidersBadge providers={props.providers} />}
                         </div>
                         <div className="font-mono text-xs text-slate-400">{formatFileSize(props.fileSizeBytes)}</div>
                     </div>
@@ -71,7 +81,15 @@ export function PageRow(props: PageRowProps) {
             <td className="hidden max-w-[200px] whitespace-nowrap border-b border-white/5 px-1 py-3 text-center align-middle text-slate-300 min-[900px]:table-cell">
                 <CategoryBadge category={props.category} />
             </td>
-            <td className="hidden max-w-[200px] whitespace-nowrap border-b border-white/5 px-1 py-3 text-center align-middle text-slate-300 min-[900px]:table-cell">
+            <td className={desktopCellClass}>
+                {props.indexer ? <IndexerBadge indexer={props.indexer} /> : <span className={styles.emptyCell}>—</span>}
+            </td>
+            <td className={desktopCellClass}>
+                {props.providers && props.providers.length > 0
+                    ? <ProvidersBadge providers={props.providers} />
+                    : <span className={styles.emptyCell}>—</span>}
+            </td>
+            <td className={desktopCellClass}>
                 <StatusBadge status={props.status} percentage={props.percentage} error={props.error} />
             </td>
             <td className="hidden max-w-[200px] whitespace-nowrap border-b border-white/5 px-1 py-3 text-center align-middle font-mono text-xs text-slate-300 min-[900px]:table-cell">
@@ -88,10 +106,55 @@ export function PageRow(props: PageRowProps) {
 
 export function CategoryBadge({ category }: { category: string }) {
     const categoryLower = category?.toLowerCase();
-    const categoryColor = categoryLower === "movies"
-        ? "border-blue-500/40 bg-blue-500/15 text-blue-200"
-        : categoryLower === "tv"
-            ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-200"
-            : "";
-    return <Badge className={`inline-block w-[85px] text-center ${categoryColor}`}>{categoryLower}</Badge>
+    return <div className={styles.categoryBadge}>{categoryLower}</div>
+}
+
+export function IndexerBadge({ indexer }: { indexer: string }) {
+    return <div className={styles.indexerBadge} title={`Indexer: ${indexer}`}>via {indexer}</div>
+}
+
+const MAX_INLINE_PROVIDERS = 3;
+
+export function ProvidersBadge({ providers }: { providers: ProviderUsage[] }) {
+    if (providers.length === 0) return null;
+    const total = providers.reduce((acc, p) => acc + p.segments, 0);
+    const visible = providers.slice(0, MAX_INLINE_PROVIDERS);
+    const hidden = providers.length - visible.length;
+    const labelOf = (p: ProviderUsage) => p.nickname?.trim() || stripHost(p.host);
+    const tooltip = providers
+        .map(p => total > 0
+            ? `${labelOf(p)} (${p.host}): ${p.segments} segments (${Math.round((p.segments / total) * 100)}%)`
+            : `${labelOf(p)} (${p.host}): idle`)
+        .join("\n");
+    return (
+        <div className={styles.providersBadge} title={tooltip}>
+            {visible.map((p, i) => (
+                <span key={p.host} className={styles.providersEntry}>
+                    {i > 0 && <span className={styles.providersSep}>·</span>}
+                    <span className={styles.providersHost}>{labelOf(p)}</span>
+                    {total > 0 && (
+                        <span className={styles.providersPct}>
+                            {Math.round((p.segments / total) * 100)}%
+                        </span>
+                    )}
+                </span>
+            ))}
+            {hidden > 0 && <span className={styles.providersMore}>+{hidden}</span>}
+        </div>
+    );
+}
+
+// Generic NNTP hostname prefixes that aren't brand-identifying.
+const GENERIC_HOST_PREFIXES = new Set(["news", "reader", "premium", "secure", "ssl", "nntp", "usenet", "block"]);
+
+function stripHost(host: string): string {
+    if (!host) return "—";
+    const labels = host.split(".").filter(Boolean);
+    if (labels.length === 0) return host;
+    if (labels.length === 1) return labels[0];
+    if (labels.length === 2) return labels[0];
+    // 3+ labels: skip a generic prefix to get to the brand label
+    if (GENERIC_HOST_PREFIXES.has(labels[0].toLowerCase())) return labels[1];
+    // pick whichever of the first two is longer (heuristic for "more identifying")
+    return labels[0].length >= labels[1].length ? labels[0] : labels[1];
 }

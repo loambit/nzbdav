@@ -10,7 +10,8 @@ An opinionated, step-by-step walkthrough for setting up NzbDav for maximum perfo
 4. [Phase 3 — Rclone sidecar (symlink imports only)](#phase-3--rclone-sidecar-symlink-imports-only)
 5. [Phase 4 — Integrations](#phase-4--integrations)
 6. [Phase 5 — Usenet streaming in Stremio (via AIOStreams)](#phase-5--usenet-streaming-in-stremio-via-aiostreams)
-7. [Phase 6 — Operations](#phase-6--operations)
+7. [Phase 6 — Search profiles and adapters](#phase-6--search-profiles-and-adapters)
+8. [Phase 7 — Operations](#phase-7--operations)
 
 ## How the "infinite library" works
 
@@ -50,7 +51,7 @@ You need a Usenet provider to download content. Consult the [Usenet Providers Wi
 
 You need Usenet indexers to find content. Consult the [Usenet Indexers Wiki](https://www.reddit.com/r/usenet/wiki/indexers/) for a full list.
 
-Add these to Prowlarr and sync them to your Radarr/Sonarr instances.
+Configure them in NzbDav under `Settings → Indexers`, and (optionally) in any external automation tool you use.
 
 ### 3. Docker
 
@@ -61,6 +62,12 @@ Install a current Docker Engine and the Docker Compose v2 plugin. The Rclone sym
 ## Phase 2 — Initial deployment
 
 We start with a basic NzbDav container.
+
+We use the pre-built multi-arch image published to GHCR (`ghcr.io/nzbdav/nzbdav`). No clone or build needed.
+
+> **IPv6-only host?** `ghcr.io` is not reachable over IPv6. The same images are mirrored to Docker Hub (IPv6-capable) — replace `ghcr.io/nzbdav/nzbdav` with `nzbdav/nzbdav` in the `image:` lines throughout this guide.
+
+> Prefer to build from source? Clone the repo (`git clone https://github.com/nzbdav/nzbdav.git`) and replace the `image:` line in the compose below with `build: /path/to/nzbdav`.
 
 ### 1. Create `docker-compose.yml`
 
@@ -426,7 +433,56 @@ Go to the **Save & Install** tab, click **Save**, and then install the addon to 
 
 ---
 
-## Phase 6 — Operations
+## Phase 6 — Search profiles and adapters
+
+Search profiles expose selected NzbDav indexers through token-scoped endpoints. Create and manage profiles under `Settings` → `Profiles`, and treat each generated token as a secret.
+
+### 1. Newznab adapter for Prowlarr, Sonarr, or Radarr
+
+1. Add a custom Newznab indexer.
+2. Set the URL to `http://nzbdav:3000/adapters/newznab/{token}`. Substitute the profile token; do not include `/api`, because the client appends it.
+3. Enter any non-empty API key. Authentication uses the URL token; the API-key field is accepted for client compatibility.
+4. Enable categories `2000` (Movies) and `5000` (TV).
+5. Test the indexer. The client calls `/api?t=caps` to verify the adapter.
+
+### 2. Addon adapter
+
+The Addon adapter exposes a token-scoped manifest endpoint. Any compatible client installs it directly via the manifest URL:
+
+```
+http://nzbdav:3000/adapters/addon/{token}/manifest.json
+```
+
+The manifest advertises the resources the client may request for `movie` and `series` types (keyed by IMDB ids). When the user picks a title in the client, the client calls back into NzbDav and receives a list of release candidates with an `url` field that, when followed, triggers on-demand fetch + mount and redirects to a playable URL served by NzbDav's WebDAV mount.
+
+### 3. JSON Search API
+
+`GET /api/search/{token}/lookup?type=movie&id=tt0111161` returns vendor-neutral JSON of the form:
+
+```json
+{
+  "profile": "Movies",
+  "type": "movie",
+  "id": "tt0111161",
+  "count": 3,
+  "results": [
+    {
+      "title": "...",
+      "indexer": "...",
+      "sizeBytes": 123456789,
+      "postedAt": "2024-01-01T00:00:00Z",
+      "grabs": 42,
+      "playUrl": "http://nzbdav:3000/api/search/{token}/play/{playToken}.mkv"
+    }
+  ]
+}
+```
+
+For series, pass `type=series&id=tt0944947&season=1&episode=1`. Hitting the `playUrl` triggers the same on-demand mount + playback redirect flow used by the Addon adapter.
+
+---
+
+## Phase 7 — Operations
 
 ### Back up NzbDav
 

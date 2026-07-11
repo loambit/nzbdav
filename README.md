@@ -29,6 +29,15 @@ It also exposes a **SABnzbd-compatible API**, so Sonarr, Radarr, and similar too
 * 🗃️ **Archive streaming** — view, stream, and seek inside RAR and 7z archives
 * 🔓 **Password-protected archives** — stream encrypted content transparently
 * 🔀 **Multiple Usenet providers** — automatic failover with per-provider circuit breakers
+* 📊 **Live operations dashboard** — throughput, latency, errors, active reads, provider usage, failover saves, and indexer activity
+* 🧭 **Provider routing and limits** — cascade priorities, per-provider data caps, usage resets, and connection benchmarking
+* 🔎 **Built-in indexer search** — configure Newznab indexers, track API usage, search them manually, and mount results
+* 🎛️ **Search profiles and adapters** — expose selected indexers through token-scoped Addon, Newznab, and JSON APIs
+* 🐕 **Watchdog playback failover** — verify candidates, retry failed releases, and inspect each playback attempt
+* 🛡️ **Warden dead-release ledger** — remember unavailable releases, combine trusted remote ledgers, and import, export, or back up the data
+* 📡 **Watchtower proactive resolution** — keep wanted movies and episodes mapped to verified releases before playback
+* 📜 **Live log viewer** — filter, follow, and download backend logs from the admin UI
+* 🗂️ **WebDAV management** — browse, download, and delete eligible virtual filesystem items from the UI
 * 💙 **Health checks & optional repairs** — monitor content health and trigger replacements through Radarr/Sonarr when configured
 * 🧩 **SABnzbd-compatible API** — drop-in replacement for SABnzbd
 * 🙌 **Sonarr/Radarr integration** — import through Rclone symlinks or lightweight STRM files
@@ -85,6 +94,8 @@ The [comprehensive setup guide](docs/setup-guide.md) covers everything needed fo
 * **Performance tuning** — benchmarking WebDAV connection limits
 * **Integrations** — automating Radarr/Sonarr queue management and repairs
 * **Stremio** — streaming Usenet on demand via AIOStreams
+* **Search profiles** — token-scoped Newznab, Addon, and JSON adapter setup
+* **Watchtower** — proactive wanted-list resolution and readiness controls in the [Watchtower guide](docs/watchtower.md)
 
 ## Screenshots
 
