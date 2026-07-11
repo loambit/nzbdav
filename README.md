@@ -75,15 +75,7 @@ Then open `http://localhost:3000`, create your admin account, and head to the **
 > [!IMPORTANT]
 > Port `3000` serves plain HTTP. If NzbDav will be reachable outside your trusted network, put it behind an HTTPS reverse proxy and do not expose the container port directly to the internet. WebDAV uses Basic authentication, so TLS is essential for remote access. When the proxy runs on the Docker host, bind the port to localhost with `127.0.0.1:3000:3000`.
 
-<p align="center">
-    <img width="600" alt="settings-page" src="https://github.com/user-attachments/assets/91175920-5a7b-4a93-906d-b8432f35c809" />
-</p>
-
-You'll also want to set a username and password for the WebDAV server itself:
-
-<p align="center">
-    <img width="600" alt="webdav-settings" src="https://github.com/user-attachments/assets/833b382c-4e1d-480a-ac25-b9cc674baea4" />
-</p>
+You'll also want to set a username and password for the WebDAV server itself.
 
 ## Documentation
 
@@ -98,13 +90,6 @@ The [comprehensive setup guide](docs/setup-guide.md) covers everything needed fo
 * **Stremio** — streaming Usenet on demand via AIOStreams
 * **Search profiles** — token-scoped Newznab, Addon, and JSON adapter setup
 * **Watchtower** — proactive wanted-list resolution and readiness controls in the [Watchtower guide](docs/watchtower.md)
-
-## Screenshots
-
-<img width="300" alt="onboarding" src="https://github.com/user-attachments/assets/4ca1bfed-3b98-4ff2-8108-59ed07a25591" />
-<img width="300" alt="queue and history" src="https://github.com/user-attachments/assets/912c0f02-e44e-49ea-b4c7-8a1a106e8a01" />
-<img width="300" alt="dav-explorer" src="https://github.com/user-attachments/assets/54a1d49b-8a8d-4306-bcda-9740bd5c9f52" />
-<img width="300" alt="health-page" src="https://github.com/user-attachments/assets/7815acb9-6696-49c3-88d6-ea673b52da1c" />
 
 ## Development
 
