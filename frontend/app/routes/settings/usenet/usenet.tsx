@@ -572,6 +572,14 @@ export function UsenetSettings({ config, setNewConfig }: UsenetSettingsProps) {
                 <div className={styles.sectionHeader}>
                     <div>NNTP Pipelining</div>
                 </div>
+                <div
+                    role="note"
+                    className="mt-3 rounded border border-amber-600/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+                >
+                    Run the <strong>speed test</strong> on a provider (edit → Auto-tune connections) before
+                    enabling this. It measures whether pipelining helps on your network — when it does,
+                    queue imports can be substantially faster.
+                </div>
                 <div className={styles["form-group"]} style={{ marginTop: 12 }}>
                     <div className={styles["form-checkbox-wrapper"]}>
                         <input
