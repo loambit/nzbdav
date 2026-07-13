@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 import { createColors } from "picocolors";
-import { isWithinBackendStartupGrace } from "./startup-grace";
+import { isWithinBackendStartupGrace } from "./startup-grace.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
