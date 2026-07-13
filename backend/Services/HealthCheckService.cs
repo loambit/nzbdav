@@ -44,8 +44,7 @@ public class HealthCheckService : BackgroundService
         _configManager.OnConfigChanged += (_, configEventArgs) =>
         {
             // when provider settings change, clear the missing segments cache
-            if (!configEventArgs.ChangedConfig.ContainsKey("usenet.providers") &&
-                !configEventArgs.ChangedConfig.ContainsKey("usenet.host")) return;
+            if (!configEventArgs.ChangedConfig.ContainsKey(ConfigKeys.UsenetProviders)) return;
             lock (_missingSegmentIds)
             {
                 _missingSegmentIds.Clear();
