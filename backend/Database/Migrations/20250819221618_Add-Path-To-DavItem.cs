@@ -23,15 +23,19 @@ namespace NzbWebDAV.Database.Migrations
         /// <summary>
         /// Rebuilds DavItems.Path for every item reachable from the WebDAV root.
         /// Only updates rows included in the recursive CTE so orphans cannot get NULL Path.
+        /// Unchanged Paths are skipped so healthy databases avoid a full-table rewrite.
         /// </summary>
         public static void BuildFullPath(MigrationBuilder migrationBuilder)
         {
             // Populate the Path column for every existing DavItem
             // * The root DavItem is given path `/`
             // * Every other DavItem is given path `{PARENT_PATH}/{NAME}`
+            // MATERIALIZED + UPDATE…FROM: scan computed once and seek DavItems by PK
+            // (O(N log N)). The Path <> predicate skips rewriting rows that are already
+            // correct, so healthy databases write ~0 rows on later rebuilds.
             migrationBuilder.Sql(
                 """
-                WITH RECURSIVE computed(Id, Path) AS (
+                WITH RECURSIVE computed(Id, Path) AS MATERIALIZED (
                     -- base case: the root item
                     SELECT Id, '/'
                     FROM DavItems
@@ -51,8 +55,10 @@ namespace NzbWebDAV.Database.Migrations
                 )
 
                 UPDATE DavItems
-                SET Path = (SELECT Path FROM computed WHERE DavItems.Id = computed.Id)
-                WHERE Id IN (SELECT Id FROM computed);
+                SET Path = computed.Path
+                FROM computed
+                WHERE DavItems.Id = computed.Id
+                  AND DavItems.Path <> computed.Path;
                 """
             );
         }
