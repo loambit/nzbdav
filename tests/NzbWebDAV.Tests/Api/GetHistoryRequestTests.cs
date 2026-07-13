@@ -57,6 +57,19 @@ public class GetHistoryRequestTests
     }
 
     [Fact]
+    public void ClampsNegativePageSizeToZero()
+    {
+        // A negative Take() becomes a negative SQLite LIMIT (= unbounded); must clamp.
+        var config = CreateConfig(ignoreLimit: true);
+        var context = new DefaultHttpContext();
+        context.Request.QueryString = new QueryString("?pageSize=-1");
+
+        var request = new GetHistoryRequest(context, config);
+
+        Assert.Equal(0, request.Limit);
+    }
+
+    [Fact]
     public void GetHistoryMaxPageSize_DefaultsAndClamps()
     {
         Assert.Equal(10_000, new ConfigManager().GetHistoryMaxPageSize());

@@ -57,8 +57,9 @@ public class GetHistoryRequest
         }
 
         // Server-side ceiling: keep ignore-limit semantics for Arrs but never materialize
-        // an unbounded history response (default Limit is int.MaxValue).
-        Limit = Math.Min(Limit, configManager.GetHistoryMaxPageSize());
+        // an unbounded history response (default Limit is int.MaxValue). Clamp instead of
+        // Min because a negative Take() becomes a negative SQLite LIMIT, which is unbounded.
+        Limit = Math.Clamp(Limit, 0, configManager.GetHistoryMaxPageSize());
 
         if (nzoIdsParam is not null)
         {
