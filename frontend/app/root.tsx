@@ -19,7 +19,7 @@ import { PageLayout } from "./routes/_index/components/page-layout/page-layout";
 import { Loading } from "./routes/_index/components/loading/loading";
 import { getAppVersion } from "./utils/version.server";
 import { checkForUpdate } from "./utils/update-check.server";
-import { backendClient, BackendUnavailableError } from "./clients/backend-client.server";
+import { backendClient } from "./clients/backend-client.server";
 import { MigrationBoundary } from "./components/migration-progress";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -135,8 +135,10 @@ export default function App({ loaderData }: Route.ComponentProps) {
 // and loop back into the same failure. Adopted from elfhosted/rebased-v3.
 export function ErrorBoundary() {
   const error = useRouteError();
+  // Match by name — do not import BackendUnavailableError here; ErrorBoundary is a
+  // client export and .server modules must only be referenced from loader/action.
   const isBackendUnavailable =
-    error instanceof BackendUnavailableError
+    (error instanceof Error && error.name === "BackendUnavailableError")
     || (
       error instanceof Error
       && /fetch failed|ConnectTimeoutError|HeadersTimeoutError|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT/i.test(
