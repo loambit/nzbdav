@@ -4,9 +4,27 @@ using Serilog;
 
 namespace NzbWebDAV.Database.Interceptors;
 
+/// <summary>
+/// Applies main-database PRAGMAs: foreign keys, busy timeout, memory temp store,
+/// a 256 MB mmap window, and a 64 MB page cache (matching the metrics DB). On
+/// write-capable connections also enables WAL, synchronous=NORMAL, and a 64 MB
+/// journal size limit so the WAL shrinks after bulk imports.
+/// </summary>
 public class SqliteMainDbPragmas : DbConnectionInterceptor
 {
     public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
+        => ApplyPragmas(connection);
+
+    public override Task ConnectionOpenedAsync(
+        DbConnection connection,
+        ConnectionEndEventData eventData,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyPragmas(connection);
+        return Task.CompletedTask;
+    }
+
+    private static void ApplyPragmas(DbConnection connection)
     {
         try
         {
@@ -22,8 +40,14 @@ public class SqliteMainDbPragmas : DbConnectionInterceptor
             command.CommandText = "PRAGMA temp_store = MEMORY;";
             command.ExecuteNonQuery();
 
-            // WAL / synchronous may attempt writes to the DB file. Skip when the
-            // connection string explicitly requests read-only mode (CI/goss, etc).
+            command.CommandText = "PRAGMA mmap_size = 268435456;";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "PRAGMA cache_size = -65536;";
+            command.ExecuteNonQuery();
+
+            // WAL / synchronous / journal_size_limit may attempt writes to the DB file.
+            // Skip when the connection string explicitly requests read-only mode (CI/goss, etc).
             if (IsExplicitlyReadOnly(connection.ConnectionString))
                 return;
 
@@ -33,6 +57,9 @@ public class SqliteMainDbPragmas : DbConnectionInterceptor
                 _ = command.ExecuteScalar();
 
                 command.CommandText = "PRAGMA synchronous = NORMAL;";
+                command.ExecuteNonQuery();
+
+                command.CommandText = "PRAGMA journal_size_limit = 67108864;";
                 command.ExecuteNonQuery();
             }
             catch (Exception ex)
