@@ -79,7 +79,7 @@ export function ThroughputChart({ points, totalArticles, totalMisses, totalError
     };
 
     const hasData = points.length > 0 && maxArticles > 0;
-    const bucketLabel = window === "24h" ? "min" : (window === "all" ? "day" : "hour");
+    const bucketLabel = window === "1h" || window === "24h" ? "min" : (window === "all" ? "day" : "hour");
     const hover = hoverIdx !== null ? points[hoverIdx] : null;
 
     return (
@@ -196,7 +196,7 @@ function Total({ label, value, accent }: { label: string, value: string, accent?
 
 function formatBucketTime(ms: number, window: OverviewWindow): string {
     const d = new Date(ms);
-    if (window === "24h") {
+    if (window === "1h" || window === "24h") {
         const hh = String(d.getHours()).padStart(2, "0");
         const mm = String(d.getMinutes()).padStart(2, "0");
         return `${hh}:${mm}`;

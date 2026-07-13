@@ -533,7 +533,7 @@ export enum RepairAction {
     ActionNeeded = 3,
 }
 
-export type OverviewWindow = "24h" | "7d" | "30d" | "all";
+export type OverviewWindow = "1h" | "24h" | "7d" | "30d" | "all";
 export type OverviewSections = "all" | "window" | "detail" | "static" | string;
 
 export type OverviewStatsResponse = {

@@ -445,6 +445,7 @@ public class GetOverviewStatsController(
     private static (long WindowMs, long BucketSize, string Label) ResolveWindow(
         GetOverviewStatsRequest.OverviewWindow window, long nowMs) => window switch
         {
+            GetOverviewStatsRequest.OverviewWindow.Last1Hour => (OneHour, OneMinute, "1h"),
             GetOverviewStatsRequest.OverviewWindow.Last24Hours => (OneDay, OneMinute, "24h"),
             GetOverviewStatsRequest.OverviewWindow.Last7Days => (7 * OneDay, OneHour, "7d"),
             GetOverviewStatsRequest.OverviewWindow.Last30Days => (30 * OneDay, OneHour, "30d"),
@@ -454,6 +455,7 @@ public class GetOverviewStatsController(
 
     private static long ResolveFailoverBucket(GetOverviewStatsRequest.OverviewWindow window) => window switch
     {
+        GetOverviewStatsRequest.OverviewWindow.Last1Hour => OneMinute,
         GetOverviewStatsRequest.OverviewWindow.Last24Hours => OneHour,
         GetOverviewStatsRequest.OverviewWindow.Last7Days => OneDay,
         GetOverviewStatsRequest.OverviewWindow.Last30Days => OneDay,
@@ -642,8 +644,12 @@ public class GetOverviewStatsController(
         GetOverviewStatsRequest.OverviewWindow window,
         IReadOnlyDictionary<string, string?> nicknamesByHost)
     {
-        var sparkBuckets = window == GetOverviewStatsRequest.OverviewWindow.Last7Days ? 168 : 24;
-        var sparkSize = OneHour;
+        var (sparkBuckets, sparkSize) = window switch
+        {
+            GetOverviewStatsRequest.OverviewWindow.Last1Hour => (60, OneMinute),
+            GetOverviewStatsRequest.OverviewWindow.Last7Days => (168, OneHour),
+            _ => (24, OneHour),
+        };
         var sparkStart = windowStart - (windowStart % sparkSize);
 
         var byProvider = new Dictionary<string, ProviderAccumulator>();
@@ -780,6 +786,10 @@ public class GetOverviewStatsController(
 
         return window switch
         {
+            // Heatmap is hourly; for 1h reuse the day strip so the widget stays useful.
+            GetOverviewStatsRequest.OverviewWindow.Last1Hour
+                => ("day", OneHour, hourEnd - 23 * OneHour, hourEnd),
+
             GetOverviewStatsRequest.OverviewWindow.Last24Hours
                 => ("day", OneHour, hourEnd - 23 * OneHour, hourEnd),
 

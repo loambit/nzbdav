@@ -35,6 +35,7 @@ public class GetOverviewStatsRequestTests
     }
 
     [Theory]
+    [InlineData("1h", GetOverviewStatsRequest.OverviewWindow.Last1Hour)]
     [InlineData("24h", GetOverviewStatsRequest.OverviewWindow.Last24Hours)]
     [InlineData("7d", GetOverviewStatsRequest.OverviewWindow.Last7Days)]
     [InlineData("30d", GetOverviewStatsRequest.OverviewWindow.Last30Days)]
