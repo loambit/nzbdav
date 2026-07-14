@@ -23,13 +23,13 @@ public class StreamingFailureTracker
     }
 
     /// <summary>Returns the current failure count for the item (0 if never recorded).</summary>
-    public int GetCount(Guid davItemId)
+    public int GetFailureCount(Guid davItemId)
     {
         return _failureCounts.GetValueOrDefault(davItemId);
     }
 
     /// <summary>Clears the counter, e.g. after a successful health check or once the item is repaired/removed.</summary>
-    public void Clear(Guid davItemId)
+    public void ClearFailure(Guid davItemId)
     {
         _failureCounts.TryRemove(davItemId, out _);
     }
