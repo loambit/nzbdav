@@ -1,5 +1,7 @@
 import { createCookieSessionStorage } from "react-router";
-import crypto from "crypto"
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { backendClient } from "~/clients/backend-client.server";
 import type { IncomingMessage } from "http";
 
@@ -10,7 +12,53 @@ type User = {
 };
 
 const oneYear = 60 * 60 * 24 * 365; // seconds
-const sessionKey = process.env.SESSION_KEY ||= crypto.randomBytes(64).toString("hex");
+
+function resolveSessionMaxAgeSeconds(): number {
+  const raw = process.env.SESSION_MAX_AGE?.trim();
+  if (!raw) return oneYear;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return oneYear;
+  return parsed;
+}
+
+function resolveSessionKey(): string {
+  if (process.env.SESSION_KEY) return process.env.SESSION_KEY;
+
+  const configPath = process.env.CONFIG_PATH;
+  if (configPath) {
+    const keyPath = path.join(configPath, "session.key");
+    try {
+      if (fs.existsSync(keyPath)) {
+        const existing = fs.readFileSync(keyPath, "utf8").trim();
+        if (existing.length > 0) {
+          process.env.SESSION_KEY = existing;
+          return existing;
+        }
+      }
+      const generated = crypto.randomBytes(64).toString("hex");
+      fs.mkdirSync(configPath, { recursive: true });
+      fs.writeFileSync(keyPath, generated, { encoding: "utf8", mode: 0o600 });
+      process.env.SESSION_KEY = generated;
+      return generated;
+    } catch {
+      // Fall through to ephemeral key if CONFIG_PATH is unwritable.
+    }
+  }
+
+  const ephemeral = crypto.randomBytes(64).toString("hex");
+  process.env.SESSION_KEY = ephemeral;
+  return ephemeral;
+}
+
+const sessionKey = resolveSessionKey();
+const sessionMaxAge = resolveSessionMaxAgeSeconds();
+const secureCookiesExplicit = process.env.SECURE_COOKIES !== undefined && process.env.SECURE_COOKIES !== "";
+if (!secureCookiesExplicit && !IS_FRONTEND_AUTH_DISABLED) {
+  console.warn(
+    "SECURE_COOKIES is unset; session cookies will be sent over HTTP. Set SECURE_COOKIES=true behind HTTPS.",
+  );
+}
+
 const sessionStorage = createCookieSessionStorage({
   cookie: {
     name: "__session",
@@ -19,7 +67,7 @@ const sessionStorage = createCookieSessionStorage({
     sameSite: "strict",
     secrets: [sessionKey],
     secure: ["true", "yes"].includes(process?.env?.SECURE_COOKIES || ""),
-    maxAge: oneYear,
+    maxAge: sessionMaxAge,
   },
 });
 
