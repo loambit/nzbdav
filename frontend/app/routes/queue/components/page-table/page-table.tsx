@@ -69,7 +69,7 @@ export type PageRowProps = {
 }
 export function PageRow(props: PageRowProps) {
     const nameContent = props.nameHref
-        ? <Link to={props.nameHref} className="text-base-content hover:text-primary hover:underline" onClick={e => e.stopPropagation()}>{props.name}</Link>
+        ? <Link to={props.nameHref} prefetch="none" className="text-base-content hover:text-primary hover:underline" onClick={e => e.stopPropagation()}>{props.name}</Link>
         : props.name;
     const completedLabel = formatCompleted(props.completed);
 
