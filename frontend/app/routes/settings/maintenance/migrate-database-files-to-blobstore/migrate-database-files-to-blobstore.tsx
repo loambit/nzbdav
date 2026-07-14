@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
-import { receiveMessage } from "~/utils/websocket-util";
-
-const TaskTopic = { 'uftbmp': 'state' };
+import { useState } from "react";
+import { useWebsocketTopic } from "~/utils/shared-websocket";
 
 type ConvertStrmToSymlinksProps = {
     savedConfig: Record<string, string>
@@ -12,20 +10,10 @@ export function MigrateDatabaseFilesToBlobstore({ savedConfig }: ConvertStrmToSy
     const [connected, setConnected] = useState<boolean>(false);
     const [progress, setProgress] = useState<string | null>(null);
 
-    // effects
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage((_, message) => setProgress(message));
-            ws.onopen = () => { setConnected(true); ws.send(JSON.stringify(TaskTopic)); }
-            ws.onclose = () => { !disposed && setTimeout(() => connect(), 1000); setProgress(null) };
-            ws.onerror = () => { ws.close() };
-            return () => { disposed = true; ws.close(); }
-        }
-        return connect();
-    }, [setProgress, setConnected]);
+    useWebsocketTopic("uftbmp", "state", setProgress, {
+        onOpen: () => setConnected(true),
+        onClose: () => setProgress(null),
+    });
 
     return (
         <div className={'space-y-3'}>

@@ -16,6 +16,7 @@ import {
 import { applyCanonicalForwardedHeaders } from "./forwarded-headers";
 
 export const app = express();
+app.disable("x-powered-by");
 export const initializeWebsocketServer = websocketServer.initialize;
 
 const trustProxy =

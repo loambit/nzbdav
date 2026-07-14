@@ -1,6 +1,16 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import type { UploadingFile } from "../route";
+
+function isIosUserAgent(): boolean {
+    if (typeof navigator === "undefined") return false;
+    return /iPad|iPhone|iPod/i.test(navigator.userAgent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isNzbFile(file: File): boolean {
+    return file.name.toLowerCase().endsWith(".nzb");
+}
 
 export function useQueueDropzone(
     setUploadingFiles: (value: React.SetStateAction<UploadingFile[]>) => void,
@@ -10,6 +20,15 @@ export function useQueueDropzone(
     const inputRef = useRef<HTMLInputElement>(null);
     const dragDepthRef = useRef(0);
     const [isDragActive, setIsDragActive] = useState(false);
+    const [rejectMessage, setRejectMessage] = useState<string | null>(null);
+
+    // iOS Safari greys out files whose extension/MIME it doesn't recognize
+    // (like .nzb) when `accept` is set. Strip the attribute after mount on
+    // iOS instead of branching during render, which would mismatch the SSR
+    // markup and trigger a hydration error.
+    useEffect(() => {
+        if (isIosUserAgent()) inputRef.current?.removeAttribute("accept");
+    }, []);
 
     const enqueueFiles = useCallback((acceptedFiles: File[]) => {
         const newFiles: UploadingFile[] = acceptedFiles.map(file => ({
@@ -53,19 +72,29 @@ export function useQueueDropzone(
         event.preventDefault();
         dragDepthRef.current = 0;
         setIsDragActive(false);
+        setRejectMessage(null);
         enqueueFiles(
-            Array.from(event.dataTransfer.files)
-                .filter(file => file.name.toLowerCase().endsWith(".nzb"))
+            Array.from(event.dataTransfer.files).filter(isNzbFile)
         );
     }, [enqueueFiles]);
 
     const onInputChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-        enqueueFiles(Array.from(event.target.files ?? []));
+        const selected = Array.from(event.target.files ?? []);
+        const nzbFiles = selected.filter(isNzbFile);
+        const rejected = selected.length - nzbFiles.length;
+        setRejectMessage(
+            rejected > 0
+                ? `Skipped ${rejected} non-.nzb file${rejected === 1 ? "" : "s"}.`
+                : null,
+        );
+        enqueueFiles(nzbFiles);
         event.target.value = "";
     }, [enqueueFiles]);
 
     return {
         isDragActive,
+        rejectMessage,
+        clearRejectMessage: () => setRejectMessage(null),
         open: () => inputRef.current?.click(),
         getRootProps: () => ({
             onDragEnter,

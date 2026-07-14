@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import type { HistoryEvents, QueueEvents } from "./events-controller";
-import { receiveMessage } from "~/utils/websocket-util";
+import { useWebsocketTopics } from "~/utils/shared-websocket";
 
 const topicNames = {
     queueItemStatus: 'qs',
@@ -20,7 +20,7 @@ const topicSubscriptions = {
     [topicNames.queueItemRemoved]: 'event',
     [topicNames.historyItemAdded]: 'event',
     [topicNames.historyItemRemoved]: 'event',
-};
+} as const;
 
 export function initializeQueueHistoryWebsocket(
     queueEvents: QueueEvents,
@@ -54,18 +54,5 @@ export function initializeQueueHistoryWebsocket(
         isHistoryLive
     ]);
 
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage(onWebsocketMessage);
-            ws.onopen = () => { ws.send(JSON.stringify(topicSubscriptions)); }
-            ws.onclose = () => { !disposed && setTimeout(() => connect(), 1000); };
-            ws.onerror = () => { ws.close() };
-            return () => { disposed = true; ws.close(); }
-        }
-
-        return connect();
-    }, [onWebsocketMessage]);
+    useWebsocketTopics(topicSubscriptions, onWebsocketMessage);
 }

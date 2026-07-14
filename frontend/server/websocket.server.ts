@@ -3,36 +3,99 @@ import { isAuthenticated } from "../app/auth/authentication.server";
 import type { IncomingMessage } from 'http';
 import { logger } from "./logger";
 
+export const MAX_WEBSOCKET_PAYLOAD_BYTES = 64 * 1024;
+export const MAX_TOPICS_PER_SOCKET = 100;
+export const WEBSOCKET_HEARTBEAT_INTERVAL_MS = 30_000;
+export const MAX_CLIENT_BUFFERED_AMOUNT = 1024 * 1024;
+
+export type TopicKind = "state" | "stream" | "event";
+
+const TOPIC_KINDS = new Set<TopicKind>(["state", "stream", "event"]);
+
+type TrackedSocket = WebSocket & { isAlive?: boolean };
+
+/** Validate browser subscription payloads: flat Record<string, TopicKind>. */
+export function parseSubscriptionTopics(raw: string): Record<string, TopicKind> | null {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        return null;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+    const topics: Record<string, TopicKind> = {};
+    for (const [topic, kind] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof topic !== "string" || topic.length === 0) return null;
+        if (typeof kind !== "string" || !TOPIC_KINDS.has(kind as TopicKind)) return null;
+        topics[topic] = kind as TopicKind;
+    }
+    if (Object.keys(topics).length > MAX_TOPICS_PER_SOCKET) return null;
+    return topics;
+}
+
+export function sendToBrowserClient(client: WebSocket, rawMessage: string): void {
+    if (client.readyState !== WebSocket.OPEN) return;
+    if (client.bufferedAmount > MAX_CLIENT_BUFFERED_AMOUNT) return;
+    client.send(rawMessage);
+}
+
 function initializeWebsocketServer(wss: WebSocketServer) {
     // keep track of socket subscriptions
-    const websockets = new Map<WebSocket, any>();
-    const subscriptions = new Map<string, Set<WebSocket>>();
+    const websockets = new Map<TrackedSocket, Record<string, TopicKind>>();
+    const subscriptions = new Map<string, Set<TrackedSocket>>();
     const lastMessage = new Map<string, string>();
     initializeWebsocketClient(subscriptions, lastMessage);
 
+    const heartbeat = setInterval(() => {
+        for (const client of wss.clients) {
+            const tracked = client as TrackedSocket;
+            if (tracked.isAlive === false) {
+                tracked.terminate();
+                continue;
+            }
+            tracked.isAlive = false;
+            tracked.ping();
+        }
+    }, WEBSOCKET_HEARTBEAT_INTERVAL_MS);
+    heartbeat.unref?.();
+    wss.on("close", () => clearInterval(heartbeat));
+
     // authenticate new websocket sessions
-    wss.on("connection", (ws: WebSocket, request: IncomingMessage) => {
+    wss.on("connection", (ws: TrackedSocket, request: IncomingMessage) => {
         // Buffer early frames and attach handlers before awaiting auth so the
         // browser's immediate onopen subscription is not dropped.
         let authenticated = false;
         let closed = false;
         const pendingMessages: WebSocket.MessageEvent[] = [];
+        ws.isAlive = true;
+        ws.on("pong", () => {
+            ws.isAlive = true;
+        });
 
         const applySubscription = (event: WebSocket.MessageEvent) => {
-            try {
-                const topics = JSON.parse(event.data.toString());
-                websockets.set(ws, topics);
-                for (const topic in topics) {
-                    const topicSubscriptions = subscriptions.get(topic);
-                    if (topicSubscriptions) topicSubscriptions.add(ws);
-                    else subscriptions.set(topic, new Set<WebSocket>([ws]));
-                    if (topics[topic] === 'state') {
-                        const messageToSend = lastMessage.get(topic);
-                        if (messageToSend) ws.send(messageToSend);
-                    }
-                }
-            } catch {
+            const topics = parseSubscriptionTopics(event.data.toString());
+            if (!topics) {
                 ws.close(1003, "Could not process topic subscription. If recently updated, try refreshing the page.");
+                return;
+            }
+
+            const previous = websockets.get(ws);
+            if (previous) {
+                for (const topic of Object.keys(previous)) {
+                    subscriptions.get(topic)?.delete(ws);
+                }
+            }
+
+            websockets.set(ws, topics);
+            for (const topic of Object.keys(topics)) {
+                const topicSubscriptions = subscriptions.get(topic);
+                if (topicSubscriptions) topicSubscriptions.add(ws);
+                else subscriptions.set(topic, new Set<TrackedSocket>([ws]));
+                if (topics[topic] === 'state') {
+                    const messageToSend = lastMessage.get(topic);
+                    if (messageToSend) sendToBrowserClient(ws, messageToSend);
+                }
             }
         };
 
@@ -50,7 +113,7 @@ function initializeWebsocketServer(wss: WebSocketServer) {
             const topics = websockets.get(ws);
             if (topics) {
                 websockets.delete(ws);
-                for (const topic in topics) {
+                for (const topic of Object.keys(topics)) {
                     const topicSubscriptions = subscriptions.get(topic);
                     if (topicSubscriptions) topicSubscriptions.delete(ws);
                 }
@@ -147,9 +210,7 @@ export function initializeWebsocketClient(subscriptions: Map<string, Set<WebSock
                 lastMessage.set(topic, rawMessage);
                 const subscribed = subscriptions.get(topic) || [];
                 subscribed.forEach(client => {
-                    if (client.readyState === client.OPEN) {
-                        client.send(rawMessage);
-                    }
+                    sendToBrowserClient(client, rawMessage);
                 });
             } catch (error) {
                 logger.error("Ignoring malformed backend websocket message", error);

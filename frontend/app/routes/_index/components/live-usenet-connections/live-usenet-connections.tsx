@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { receiveMessage } from "~/utils/websocket-util";
-
-const usenetConnectionsTopic = {'cxs': 'state'};
+import { useWebsocketTopic } from "~/utils/shared-websocket";
 
 type LiveUsenetConnectionsProps = {
     hasUsenetProviders: boolean,
@@ -13,31 +11,18 @@ export function LiveUsenetConnections({ hasUsenetProviders }: LiveUsenetConnecti
     const [_0, _1, _2, live, max, idle] = parts.map(x => Number(x));
     const active = live - idle;
 
-    useEffect(() => {
-        if (!hasUsenetProviders) {
-            setConnections(null);
-            return;
-        }
+    useWebsocketTopic(
+        "cxs",
+        "state",
+        setConnections,
+        {
+            enabled: hasUsenetProviders,
+            onClose: () => setConnections(null),
+        },
+    );
 
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage((_, message) => setConnections(message));
-            ws.onopen = () => ws.send(JSON.stringify(usenetConnectionsTopic));
-            ws.onerror = () => { ws.close() };
-            ws.onclose = onClose;
-            return () => { disposed = true; ws.close(); }
-        }
-        function onClose(e: CloseEvent) {
-            if (e.code == 1008) {
-                globalThis.location.assign("/login");
-                return;
-            }
-            !disposed && setTimeout(() => connect(), 1000);
-            setConnections(null);
-        }
-        return connect();
+    useEffect(() => {
+        if (!hasUsenetProviders) setConnections(null);
     }, [hasUsenetProviders]);
 
     return (

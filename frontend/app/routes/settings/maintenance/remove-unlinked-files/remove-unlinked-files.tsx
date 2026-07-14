@@ -2,9 +2,7 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/feedback";
 import { Icon } from "~/components/ui/icon";
 import { useCallback, useEffect, useState } from "react";
-import { receiveMessage } from "~/utils/websocket-util";
-
-const cleanupTaskTopic = { 'ctp': 'state' };
+import { useWebsocketTopic } from "~/utils/shared-websocket";
 
 type RemoveUnlinkedFilesProps = {
     savedConfig: Record<string, string>
@@ -29,20 +27,10 @@ export function RemoveUnlinkedFiles({ savedConfig }: RemoveUnlinkedFilesProps) {
     const runButtonVariant = isRunButtonEnabled ? 'success' : 'secondary';
     const runButtonLabel = isRunning ? "Running..." : "Run Task";
 
-    // effects
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage((_, message) => setProgress(message));
-            ws.onopen = () => { setConnected(true); ws.send(JSON.stringify(cleanupTaskTopic)); }
-            ws.onclose = () => { !disposed && setTimeout(() => connect(), 1000); setProgress(null) };
-            ws.onerror = () => { ws.close() };
-            return () => { disposed = true; ws.close(); }
-        }
-        return connect();
-    }, [setProgress, setConnected]);
+    useWebsocketTopic("ctp", "state", setProgress, {
+        onOpen: () => setConnected(true),
+        onClose: () => setProgress(null),
+    });
 
     useEffect(() => {
         if (isFinished)

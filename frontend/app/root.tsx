@@ -8,6 +8,7 @@ import {
   useLocation,
   useNavigation,
   useRouteError,
+  type ShouldRevalidateFunctionArgs,
 } from "react-router";
 
 import "./app.css";
@@ -50,6 +51,39 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
+/** True for pages the root loader renders without the app layout. */
+function isLayoutlessPath(pathname: string): boolean {
+  const path = pathname.replace(/\.data$/, "");
+  return path === "/login" || path === "/onboarding";
+}
+
+/**
+ * Skip root config re-fetches for routine mutations (queue deletes, toggles),
+ * but always revalidate when crossing the login/onboarding layout boundary
+ * (login/logout redirects change `useLayout`) and after settings/onboarding
+ * saves (which can change providers/watchdog config).
+ */
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  if (isLayoutlessPath(currentUrl.pathname) !== isLayoutlessPath(nextUrl.pathname)) {
+    return true;
+  }
+  if (formMethod && formMethod !== "GET") {
+    const fromSettingsOrOnboarding =
+      currentUrl.pathname.startsWith("/settings")
+      || currentUrl.pathname.startsWith("/onboarding");
+    const toSettingsOrOnboarding =
+      nextUrl.pathname.startsWith("/settings")
+      || nextUrl.pathname.startsWith("/onboarding");
+    return fromSettingsOrOnboarding || toSettingsOrOnboarding;
+  }
+  return defaultShouldRevalidate;
+}
+
 function hasConfiguredUsenetProviders(configValue?: string): boolean {
   if (!configValue) return false;
 
@@ -69,9 +103,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/logo.svg" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
         <Meta />
         <Links />
       </head>

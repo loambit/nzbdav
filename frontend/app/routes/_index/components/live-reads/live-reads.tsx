@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
-import { receiveMessage } from "~/utils/websocket-util";
+import { useState } from "react";
+import { useWebsocketTopic } from "~/utils/shared-websocket";
 import { Icon } from "~/components/ui";
-
-const activeReadsTopic = { ar: 'state' };
 
 type ProviderUsage = { host: string; nickname?: string | null; segments: number };
 type Read = {
@@ -38,30 +36,12 @@ function shortName(name: string): string {
 export function LiveReads() {
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage((_, message) => {
-                try { setSnapshot(JSON.parse(message)); }
-                catch { /* ignore malformed frames */ }
-            });
-            ws.onopen = () => ws.send(JSON.stringify(activeReadsTopic));
-            ws.onerror = () => { ws.close() };
-            ws.onclose = onClose;
-            return () => { disposed = true; ws.close(); }
-        }
-        function onClose(e: CloseEvent) {
-            if (e.code === 1008) {
-                globalThis.location.assign("/login");
-                return;
-            }
-            !disposed && setTimeout(() => connect(), 1000);
-            setSnapshot(null);
-        }
-        return connect();
-    }, []);
+    useWebsocketTopic("ar", "state", (message) => {
+        try { setSnapshot(JSON.parse(message)); }
+        catch { /* ignore malformed frames */ }
+    }, {
+        onClose: () => setSnapshot(null),
+    });
 
     const reads = snapshot?.reads ?? [];
     if (reads.length === 0) return null;

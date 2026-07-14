@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import styles from "./live-reads-panel.module.css";
 import type { ActiveRead, ActiveReadsMessage } from "~/clients/backend-client.server";
 import { formatBytes } from "../../utils/format";
+import { useWebsocketTopic } from "~/utils/shared-websocket";
 
 const TOPIC_ACTIVE_READS = "ar";
-const SUBSCRIPTION = { [TOPIC_ACTIVE_READS]: "state" };
 
 /**
  * Live "right now" panel — reads cards refreshed via the ActiveReads WS topic.
@@ -15,49 +15,29 @@ export function LiveReadsPanel() {
     // Track previous bytesRead per session for live MiB/s computation.
     const prevRef = useRef<Map<string, { bytes: number, at: number, rate: number }>>(new Map());
 
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(globalThis.location.origin.replace(/^http/, "ws"));
-            ws.onmessage = (event) => {
-                try {
-                    const parsed = JSON.parse(event.data);
-                    if (parsed.Topic !== TOPIC_ACTIVE_READS) return;
-                    const payload: ActiveReadsMessage = JSON.parse(parsed.Message);
-                    const now = Date.now();
-                    const prev = prevRef.current;
-                    const next = new Map<string, { bytes: number, at: number, rate: number }>();
-                    for (const r of payload.reads ?? []) {
-                        const old = prev.get(r.id);
-                        let rate = old?.rate ?? 0;
-                        if (old && now > old.at) {
-                            const dt = (now - old.at) / 1000;
-                            const db = r.bytesRead - old.bytes;
-                            if (dt > 0 && db >= 0) {
-                                const instant = db / dt;
-                                rate = old.rate * 0.4 + instant * 0.6;
-                            }
-                        }
-                        next.set(r.id, { bytes: r.bytesRead, at: now, rate });
+    useWebsocketTopic(TOPIC_ACTIVE_READS, "state", (message) => {
+        try {
+            const payload: ActiveReadsMessage = JSON.parse(message);
+            const now = Date.now();
+            const prev = prevRef.current;
+            const next = new Map<string, { bytes: number, at: number, rate: number }>();
+            for (const r of payload.reads ?? []) {
+                const old = prev.get(r.id);
+                let rate = old?.rate ?? 0;
+                if (old && now > old.at) {
+                    const dt = (now - old.at) / 1000;
+                    const db = r.bytesRead - old.bytes;
+                    if (dt > 0 && db >= 0) {
+                        const instant = db / dt;
+                        rate = old.rate * 0.4 + instant * 0.6;
                     }
-                    prevRef.current = next;
-                    setReads(payload.reads ?? []);
-                } catch { /* ignore */ }
-            };
-            ws.onopen = () => { ws.send(JSON.stringify(SUBSCRIPTION)); };
-            ws.onclose = (event) => {
-                if (event.code === 1008) {
-                    globalThis.location.assign("/login");
-                    return;
                 }
-                if (!disposed) setTimeout(connect, 1000);
-            };
-            ws.onerror = () => { ws.close(); };
-        }
-        connect();
-        return () => { disposed = true; ws?.close(); };
-    }, []);
+                next.set(r.id, { bytes: r.bytesRead, at: now, rate });
+            }
+            prevRef.current = next;
+            setReads(payload.reads ?? []);
+        } catch { /* ignore */ }
+    });
 
     if (reads.length === 0) return null;
 

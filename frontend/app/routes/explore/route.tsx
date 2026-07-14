@@ -279,7 +279,7 @@ function Body(props: ExplorePageData) {
                             This WebDAV directory does not exist, may have moved, or is still initializing.
                         </p>
                         <div className="card-actions justify-center">
-                            <Link to="/explore" className="btn btn-primary btn-sm">
+                                <Link to="/explore" discover="none" className="btn btn-primary btn-sm">
                                 WebDAV root
                             </Link>
                         </div>
@@ -330,7 +330,7 @@ function Body(props: ExplorePageData) {
                                         onToggle={toggleSelect}
                                     />
                                 )}
-                                <Link to={getDirectoryPath(x.name)}>
+                                <Link to={getDirectoryPath(x.name)} discover="none">
                                     <div className={styles["item-content"]}>
                                         <div className={styles["directory-icon"]} />
                                         <div className={styles["item-name"]}>{x.name}</div>
