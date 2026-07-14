@@ -2,7 +2,7 @@ import styles from "./usenet.module.css"
 import { type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { Icon, SettingsPage } from "~/components/ui";
-import { receiveMessage } from "~/utils/websocket-util";
+import { subscribeWebsocketTopics, useWebsocketTopic } from "~/utils/shared-websocket";
 import { isMaskedSecret } from "~/utils/config-mask";
 import {
     DndContext,
@@ -22,8 +22,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const usenetConnectionsTopic = {'cxs': 'state'};
-const benchmarkTopic = {'bench': 'state'};
 const USAGE_POLL_INTERVAL_MS = 10_000;
 
 // Mirrors the camelCase JSON the backend benchmark endpoint + websocket emit.
@@ -366,24 +364,9 @@ export function UsenetSettings({ config, setNewConfig }: UsenetSettingsProps) {
         }}));
     }, [setConnections]);
 
-    // effects
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage((_, message) => handleConnectionsMessage(message));
-            ws.onopen = () => ws.send(JSON.stringify(usenetConnectionsTopic));
-            ws.onerror = () => { ws.close() };
-            ws.onclose = onClose;
-            return () => { disposed = true; ws.close(); }
-        }
-        function onClose(e: CloseEvent) {
-            !disposed && setTimeout(() => connect(), 1000);
-            setConnections({});
-        }
-        return connect();
-    }, [setConnections, handleConnectionsMessage]);
+    useWebsocketTopic("cxs", "state", handleConnectionsMessage, {
+        onClose: () => setConnections({}),
+    });
 
     // Poll provider usage. Backend computes "bytes since reset + offset" from
     // the persisted hourly rollup plus the in-memory tracker; cheap enough to
@@ -894,21 +877,18 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
 
         // Live progress over the websocket — best-effort eye-candy; the POST
         // below returns the authoritative result regardless.
-        let ws: WebSocket | null = null;
-        try {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onopen = () => ws?.send(JSON.stringify(benchmarkTopic));
-            ws.onmessage = receiveMessage((topic, message) => {
-                if (topic !== 'bench') return;
+        const unsubscribeProgress = subscribeWebsocketTopics(
+            { bench: "state" },
+            (topic, message) => {
+                if (topic !== "bench") return;
                 try {
                     const update = JSON.parse(message) as BenchmarkProgress;
                     // Ignore the terminal "done" frame (incl. any replayed from a
                     // previous run) so the bar doesn't flash to 100% then restart.
-                    if (update.phase !== 'done') setBenchmarkProgress(update);
+                    if (update.phase !== "done") setBenchmarkProgress(update);
                 } catch { /* ignore malformed progress */ }
-            });
-            ws.onerror = () => ws?.close();
-        } catch { /* progress is optional */ }
+            },
+        );
 
         try {
             const formData = new FormData();
@@ -945,7 +925,7 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
         } finally {
             setIsBenchmarking(false);
             if (benchmarkAbortRef.current === controller) benchmarkAbortRef.current = null;
-            ws?.close();
+            unsubscribeProgress();
         }
     }, [host, port, useSsl, user, pass, maxConnections, intensity, pipeliningOnly]);
 

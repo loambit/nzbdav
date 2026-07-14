@@ -3,7 +3,7 @@ import { backendClient } from "~/clients/backend-client.server";
 import { HealthTable } from "./components/health-table/health-table";
 import { HealthStats } from "./components/health-stats/health-stats";
 import { useCallback, useEffect, useState } from "react";
-import { receiveMessage } from "~/utils/websocket-util";
+import { useWebsocketTopics } from "~/utils/shared-websocket";
 import { Alert, Icon } from "~/components/ui";
 
 const topicNames = {
@@ -13,7 +13,7 @@ const topicNames = {
 const topicSubscriptions = {
     [topicNames.healthItemStatus]: 'event',
     [topicNames.healthItemProgress]: 'event',
-}
+} as const;
 
 export async function loader() {
     const enabledKey = 'repair.enable';
@@ -117,20 +117,7 @@ export default function Health({ loaderData }: Route.ComponentProps) {
         onHealthItemProgress
     ]);
 
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(window.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage(onWebsocketMessage);
-            ws.onopen = () => { ws.send(JSON.stringify(topicSubscriptions)); }
-            ws.onclose = () => { !disposed && setTimeout(() => connect(), 1000); };
-            ws.onerror = () => { ws.close() };
-            return () => { disposed = true; ws.close(); }
-        }
-
-        return connect();
-    }, [onWebsocketMessage]);
+    useWebsocketTopics(topicSubscriptions, onWebsocketMessage);
 
     return (
         <div className="flex min-h-full min-w-full flex-col gap-8 px-4 py-4 text-sm text-slate-300 md:px-8">

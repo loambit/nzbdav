@@ -8,12 +8,14 @@ export const MAX_TOPICS_PER_SOCKET = 100;
 export const WEBSOCKET_HEARTBEAT_INTERVAL_MS = 30_000;
 export const MAX_CLIENT_BUFFERED_AMOUNT = 1024 * 1024;
 
-const TOPIC_KINDS = new Set(["state", "stream"]);
+export type TopicKind = "state" | "stream" | "event";
+
+const TOPIC_KINDS = new Set<TopicKind>(["state", "stream", "event"]);
 
 type TrackedSocket = WebSocket & { isAlive?: boolean };
 
-/** Validate browser subscription payloads: flat Record<string, "state" | "stream">. */
-export function parseSubscriptionTopics(raw: string): Record<string, "state" | "stream"> | null {
+/** Validate browser subscription payloads: flat Record<string, TopicKind>. */
+export function parseSubscriptionTopics(raw: string): Record<string, TopicKind> | null {
     let parsed: unknown;
     try {
         parsed = JSON.parse(raw);
@@ -22,12 +24,11 @@ export function parseSubscriptionTopics(raw: string): Record<string, "state" | "
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 
-    const topics: Record<string, "state" | "stream"> = {};
+    const topics: Record<string, TopicKind> = {};
     for (const [topic, kind] of Object.entries(parsed as Record<string, unknown>)) {
         if (typeof topic !== "string" || topic.length === 0) return null;
-        if (kind !== "state" && kind !== "stream") return null;
-        if (!TOPIC_KINDS.has(kind)) return null;
-        topics[topic] = kind;
+        if (typeof kind !== "string" || !TOPIC_KINDS.has(kind as TopicKind)) return null;
+        topics[topic] = kind as TopicKind;
     }
     if (Object.keys(topics).length > MAX_TOPICS_PER_SOCKET) return null;
     return topics;
@@ -41,7 +42,7 @@ export function sendToBrowserClient(client: WebSocket, rawMessage: string): void
 
 function initializeWebsocketServer(wss: WebSocketServer) {
     // keep track of socket subscriptions
-    const websockets = new Map<TrackedSocket, Record<string, "state" | "stream">>();
+    const websockets = new Map<TrackedSocket, Record<string, TopicKind>>();
     const subscriptions = new Map<string, Set<TrackedSocket>>();
     const lastMessage = new Map<string, string>();
     initializeWebsocketClient(subscriptions, lastMessage);

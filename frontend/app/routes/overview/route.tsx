@@ -1,7 +1,7 @@
 import type { Route } from "./+types/route";
 import styles from "./route.module.css";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { receiveMessage } from "~/utils/websocket-util";
+import { useWebsocketTopics } from "~/utils/shared-websocket";
 import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { LiveTiles } from "./components/live-tiles/live-tiles";
@@ -33,7 +33,7 @@ const topicNames = {
 };
 const topicSubscriptions = {
     [topicNames.liveStats]: 'state',
-};
+} as const;
 
 const WINDOWS: { value: OverviewWindow, label: string }[] = [
     { value: "1h", label: "1h" },
@@ -179,30 +179,13 @@ export default function Overview(_props: Route.ComponentProps) {
         return () => clearInterval(interval);
     }, []);
 
-    useEffect(() => {
-        let ws: WebSocket;
-        let disposed = false;
-        function connect() {
-            ws = new WebSocket(globalThis.location.origin.replace(/^http/, 'ws'));
-            ws.onmessage = receiveMessage(onWsMessage);
-            ws.onopen = () => {
-                setConnectedAt(Date.now());
-                ws.send(JSON.stringify(topicSubscriptions));
-            };
-            ws.onclose = (event) => {
-                setConnectedAt(null);
-                setTransportFailed(true);
-                if (event.code === 1008) {
-                    globalThis.location.assign("/login");
-                    return;
-                }
-                if (!disposed) setTimeout(connect, 1000);
-            };
-            ws.onerror = () => { ws.close(); };
-        }
-        connect();
-        return () => { disposed = true; ws?.close(); };
-    }, [onWsMessage]);
+    useWebsocketTopics(topicSubscriptions, onWsMessage, {
+        onOpen: () => setConnectedAt(Date.now()),
+        onClose: () => {
+            setConnectedAt(null);
+            setTransportFailed(true);
+        },
+    });
 
     const heartbeatAge = liveClock - (lastLiveStatsAt ?? connectedAt ?? liveClock);
     const liveStatsStale = transportFailed || (connectedAt !== null && heartbeatAge > 15_000);

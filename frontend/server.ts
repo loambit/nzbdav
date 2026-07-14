@@ -5,7 +5,6 @@ import { WebSocketServer } from "ws";
 import { logger, requestLogger } from "./server/logger.js";
 import { shouldSkipCompression } from "./server/proxy-path.js";
 import { securityHeadersMiddleware } from "./server/security-headers.js";
-import { MAX_WEBSOCKET_PAYLOAD_BYTES } from "./server/websocket.server.js";
 
 // Short-circuit the type-checking of the built output.
 const BUILD_PATH = "../build/server/index.js";
@@ -99,7 +98,7 @@ if (DEVELOPMENT) {
 
 // Create both the http and websocket servers
 const server = http.createServer(app);
-setWebsocketServer(new WebSocketServer({ server, maxPayload: MAX_WEBSOCKET_PAYLOAD_BYTES }));
+setWebsocketServer(new WebSocketServer({ server, maxPayload: 64 * 1024 }));
 
 // Begin listening for connections
 server.listen(PORT, () => {
