@@ -955,9 +955,7 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
         // history for the same hostname twice. On edit, leave ResetAt alone
         // (the dedicated Reset button is the right surface for that).
         const isNew = !isEditing;
-        const offsetToPersist = isNew
-            ? (initialUsedBytes ?? 0)
-            : (provider?.BytesUsedOffset ?? 0);
+        const offsetToPersist = initialUsedBytes ?? (isNew ? 0 : (provider?.BytesUsedOffset ?? 0));
         const resetAtToPersist = isNew && initialUsedBytes !== null
             ? Date.now()
             : (provider?.BytesUsedResetAt ?? 0);
@@ -1225,8 +1223,7 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
                             </div>
                         </div>
 
-                        {!isEditing && (
-                            <div className={`${styles["form-group"]} ${styles["full-width"]}`}>
+                        <div className={`${styles["form-group"]} ${styles["full-width"]}`}>
                                 <label className={styles["form-label"]}>
                                     Already Used (optional)
                                 </label>
@@ -1253,7 +1250,6 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
                                     Seed the counter when migrating a partially-used block from another client. Leave empty for a fresh block.
                                 </div>
                             </div>
-                        )}
                     </div>
 
                     {testError && (
