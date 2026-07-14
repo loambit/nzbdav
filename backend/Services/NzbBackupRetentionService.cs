@@ -39,7 +39,7 @@ public class NzbBackupRetentionService(ConfigManager configManager) : Background
             return 0;
 
         var trimmed = backupLocation.Trim();
-        if (trimmed is "/" or "\\" )
+        if (trimmed is "/" or "\\")
             return 0;
 
         string backupRoot;
