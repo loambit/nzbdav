@@ -75,6 +75,12 @@ public class WebsocketManager
         return Task.WhenAll(authenticatedSockets.Select(x => SendMessage(x, bytes)));
     }
 
+    internal string? PeekLastMessage(WebsocketTopic topic)
+    {
+        lock (_lastMessage)
+            return _lastMessage.TryGetValue(topic, out var message) ? message : null;
+    }
+
     /// <summary>
     /// Ensure a websocket sends a valid api key.
     /// </summary>

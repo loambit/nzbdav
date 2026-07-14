@@ -34,4 +34,22 @@ public abstract class BaseTask
         await task.ConfigureAwait(false);
         return true;
     }
+
+    /// <summary>
+    /// Clears the shared single-flight slot. Tests only.
+    /// </summary>
+    internal static async Task ResetRunningTaskForTestsAsync()
+    {
+        await Semaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_runningTask is { IsCompleted: false })
+                await _runningTask.ConfigureAwait(false);
+            _runningTask = null;
+        }
+        finally
+        {
+            Semaphore.Release();
+        }
+    }
 }

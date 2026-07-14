@@ -17,6 +17,8 @@ public class RemoveUnlinkedFilesController(
     {
         var task = new RemoveUnlinkedFilesTask(configManager, websocketManager, isDryRun: false);
         var executed = await task.Execute().ConfigureAwait(false);
+        if (!executed)
+            return Conflict(new { error = "Remove Orphaned Files task is already running." });
         return Ok(executed);
     }
 }
