@@ -374,6 +374,10 @@ public class MultiConnectionNntpClient(
                     continue;
                 }
 
+                // Exhausted the streaming-timeout retry budget — count toward the
+                // breaker once per segment (not per attempt) so chronically-slow
+                // providers still trip without over-counting a single segment.
+                circuitBreaker.RecordFailure();
                 Log.Warning(
                     "Streaming timeout executing nntp {Command} command after {Timeout}s. No retries left.",
                     name, streamingTimeout.PerSegmentTimeout.TotalSeconds);
@@ -445,10 +449,11 @@ public class MultiConnectionNntpClient(
                 attemptCts?.Dispose();
             }
 
-            // stat, head, and date
+            // stat, head, and date — do not feed the circuit breaker.
+            // STAT/HEAD/DATE successes were resetting BODY failure streaks and
+            // preventing trips under mixed traffic (STAT-ok/BODY-fail providers).
             if (name is "STAT" or "HEAD" or "DATE")
             {
-                circuitBreaker.RecordSuccess();
                 deferredCallback.Discard();
                 LogException(() => connectionLock?.Dispose());
             }

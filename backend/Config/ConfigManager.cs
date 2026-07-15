@@ -243,7 +243,7 @@ public class ConfigManager
                     break;
 
                 case ConfigKeys.UsenetProviders:
-                    RequireJson<UsenetProviderConfig>(item.ConfigName, value);
+                    RequireValidUsenetProviders(item.ConfigName, value);
                     break;
 
                 case ConfigKeys.ArrInstances:
@@ -283,6 +283,34 @@ public class ConfigManager
             catch (JsonException e)
             {
                 throw new ArgumentException($"Config value for '{key}' is not valid JSON: {e.Message}");
+            }
+        }
+
+        static void RequireValidUsenetProviders(string key, string value)
+        {
+            UsenetProviderConfig? config;
+            try
+            {
+                config = JsonSerializer.Deserialize<UsenetProviderConfig>(value);
+            }
+            catch (JsonException e)
+            {
+                throw new ArgumentException($"Config value for '{key}' is not valid JSON: {e.Message}");
+            }
+
+            if (config?.Providers is null) return;
+            for (var i = 0; i < config.Providers.Count; i++)
+            {
+                var p = config.Providers[i];
+                var label = string.IsNullOrWhiteSpace(p.Nickname) ? p.Host : p.Nickname;
+                if (string.IsNullOrWhiteSpace(p.Host))
+                    throw new ArgumentException($"Provider #{i + 1}: host must not be empty.");
+                if (p.Port is < 1 or > 65535)
+                    throw new ArgumentException($"Provider '{label}': port must be between 1 and 65535, but was {p.Port}.");
+                if (p.MaxConnections < 1)
+                    throw new ArgumentException($"Provider '{label}': max connections must be at least 1, but was {p.MaxConnections}.");
+                if (p.ByteLimit is < 0)
+                    throw new ArgumentException($"Provider '{label}': byte limit must not be negative.");
             }
         }
     }
@@ -447,10 +475,8 @@ public class ConfigManager
 
     public int GetArticleBufferSize()
     {
-        return int.Parse(
-            StringUtil.EmptyToNull(GetConfigValue(ConfigKeys.UsenetArticleBufferSize))
-            ?? "40"
-        );
+        var v = StringUtil.EmptyToNull(GetConfigValue(ConfigKeys.UsenetArticleBufferSize));
+        return int.TryParse(v, out var n) ? Math.Clamp(n, 0, 1000) : 40;
     }
 
     /// <summary>
@@ -486,7 +512,8 @@ public class ConfigManager
 
     public long GetSegmentCacheMaxBytes()
     {
-        var gb = long.Parse(StringUtil.EmptyToNull(GetConfigValue(ConfigKeys.UsenetSegmentCacheMaxGb)) ?? "10");
+        var v = StringUtil.EmptyToNull(GetConfigValue(ConfigKeys.UsenetSegmentCacheMaxGb));
+        var gb = long.TryParse(v, out var n) ? n : 10;
         return Math.Max(1, gb) * 1024L * 1024L * 1024L;
     }
 
@@ -503,8 +530,8 @@ public class ConfigManager
     public SemaphorePriorityOdds GetStreamingPriority()
     {
         var stringValue = StringUtil.EmptyToNull(GetConfigValue(ConfigKeys.UsenetStreamingPriority));
-        var numericalValue = int.Parse(stringValue ?? "80");
-        return new SemaphorePriorityOdds() { HighPriorityOdds = numericalValue };
+        var numericalValue = int.TryParse(stringValue, out var n) ? Math.Clamp(n, 0, 100) : 80;
+        return new SemaphorePriorityOdds { HighPriorityOdds = numericalValue };
     }
 
     public TimeSpan GetStreamingSegmentTimeout()

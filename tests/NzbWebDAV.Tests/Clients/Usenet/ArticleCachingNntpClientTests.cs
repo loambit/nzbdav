@@ -1,14 +1,16 @@
 using System.Text;
 using NzbWebDAV.Clients.Usenet;
 using NzbWebDAV.Tests.Fakes;
+using NzbWebDAV.Tests.TestUtils;
 
 namespace NzbWebDAV.Tests.Clients.Usenet;
 
 public class ArticleCachingNntpClientTests
 {
-    [Fact]
+    [SkippableFact]
     public async Task DecodedBodyAsync_CachesDecodedBytesAfterFirstRead()
     {
+        Skip.IfNot(RapidYenc.IsAvailable, "rapidyenc native library not available on this platform");
         var inner = new FakeNntpClient(new Dictionary<string, byte[]>
         {
             ["segment"] = Encoding.ASCII.GetBytes("cached payload")
@@ -25,9 +27,10 @@ public class ArticleCachingNntpClientTests
         Assert.Equal(1, inner.BodyRequestCount);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task DecodedBodiesAsync_PreservesOrderAcrossCachedAndMissingSegments()
     {
+        Skip.IfNot(RapidYenc.IsAvailable, "rapidyenc native library not available on this platform");
         var inner = new FakeNntpClient(new Dictionary<string, byte[]>
         {
             ["one"] = Encoding.ASCII.GetBytes("one"),

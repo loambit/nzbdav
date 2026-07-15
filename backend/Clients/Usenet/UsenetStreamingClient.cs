@@ -23,9 +23,19 @@ public class UsenetStreamingClient : WrappingNntpClient
             // if unrelated config changed, do nothing
             if (!configEventArgs.ChangedConfig.ContainsKey(ConfigKeys.UsenetProviders)) return;
 
-            // update the connection-pool according to the new config
-            var newUsenetClient = CreateDownloadingNntpClient(configManager, websocketManager, usageTracker, metricsWriter, bytesTracker);
-            ReplaceUnderlyingClient(newUsenetClient);
+            try
+            {
+                // update the connection-pool according to the new config
+                var newUsenetClient = CreateDownloadingNntpClient(
+                    configManager, websocketManager, usageTracker, metricsWriter, bytesTracker);
+                ReplaceUnderlyingClient(newUsenetClient);
+            }
+            catch (Exception e)
+            {
+                // Keep the previous (working) client and let remaining OnConfigChanged
+                // subscribers run — a throw from a multicast handler aborts the rest.
+                Log.Error(e, "Failed to rebuild usenet client after provider config change; keeping previous client");
+            }
         };
     }
 
@@ -102,8 +112,20 @@ public class UsenetStreamingClient : WrappingNntpClient
         int idleTimeoutSeconds
     )
     {
+        var maxConnections = connectionDetails.MaxConnections;
+        if (maxConnections < 1)
+        {
+            Log.Warning(
+                "Provider '{Provider}' has MaxConnections={MaxConnections}; clamping to 1 so the connection pool can start",
+                string.IsNullOrWhiteSpace(connectionDetails.Nickname)
+                    ? connectionDetails.Host
+                    : connectionDetails.Nickname,
+                maxConnections);
+            maxConnections = 1;
+        }
+
         var connectionPool = CreateNewConnectionPool(
-            maxConnections: connectionDetails.MaxConnections,
+            maxConnections: maxConnections,
             connectionFactory: ct => CreateNewConnection(connectionDetails, ct),
             onConnectionPoolChanged,
             idleTimeoutSeconds
@@ -146,20 +168,41 @@ public class UsenetStreamingClient : WrappingNntpClient
         return connectionPool;
     }
 
-    public static async ValueTask<INntpClient> CreateNewConnection
+    // Hard ceiling for TCP/TLS connect + AUTHINFO. Long enough for slow providers,
+    // short enough that three stuck handshakes cannot pin the pool forever.
+    // Settable for tests so timeout coverage does not wait a full 15s.
+    internal static TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    public static ValueTask<INntpClient> CreateNewConnection
     (
         UsenetProviderConfig.ConnectionDetails connectionDetails,
         CancellationToken ct
+    ) => CreateNewConnection(connectionDetails, static () => new BaseNntpClient(), ct);
+
+    internal static async ValueTask<INntpClient> CreateNewConnection
+    (
+        UsenetProviderConfig.ConnectionDetails connectionDetails,
+        Func<INntpClient> connectionFactory,
+        CancellationToken ct
     )
     {
-        var connection = new BaseNntpClient();
-        var host = connectionDetails.Host;
-        var port = connectionDetails.Port;
-        var useSsl = connectionDetails.UseSsl;
-        var user = connectionDetails.User;
-        var pass = connectionDetails.Pass;
-        await connection.ConnectAsync(host, port, useSsl, ct).ConfigureAwait(false);
-        await connection.AuthenticateAsync(user, pass, ct).ConfigureAwait(false);
-        return connection;
+        var connection = connectionFactory();
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(ConnectTimeout);
+            await connection.ConnectAsync(
+                connectionDetails.Host, connectionDetails.Port, connectionDetails.UseSsl,
+                timeoutCts.Token).ConfigureAwait(false);
+            await connection.AuthenticateAsync(
+                connectionDetails.User, connectionDetails.Pass,
+                timeoutCts.Token).ConfigureAwait(false);
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
     }
 }
