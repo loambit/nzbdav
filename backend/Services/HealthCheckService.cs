@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using NzbWebDAV.Clients.RadarrSonarr;
 using NzbWebDAV.Clients.RadarrSonarr.BaseModels;
 using NzbWebDAV.Clients.Usenet;
 using NzbWebDAV.Config;
@@ -341,6 +342,95 @@ public class HealthCheckService : BackgroundService
         return UrgentRepairDisposition.ForceDelete;
     }
 
+    /// <summary>
+    /// Outcome of consulting Arr instances for a library-linked unhealthy item.
+    /// </summary>
+    public enum ArrLinkedRepairDecision
+    {
+        /// <summary>An Arr instance owned the file and remove-and-search succeeded.</summary>
+        RemoveAndSearchSucceeded,
+        /// <summary>
+        /// At least one Arr instance was unreachable/unusable and no instance confirmed the link
+        /// as an orphan — leave the DavItem in place.
+        /// </summary>
+        DeferUnreachable,
+        /// <summary>Ownership was fully determined: no Arr media-item; safe to delete.</summary>
+        DeleteConfirmedOrphan,
+    }
+
+    /// <summary>
+    /// Consults Arr clients to decide whether a library-linked unhealthy item should trigger
+    /// remove-and-search, be deferred while an instance is down, or be deleted as a confirmed orphan.
+    /// Extracted so the unreachable-instance fail-safe can be unit-tested without a full Repair harness.
+    /// </summary>
+    internal static async Task<ArrLinkedRepairDecision> DecideArrLinkedRepairAsync(
+        IEnumerable<ArrClient> arrClients,
+        string symlinkOrStrmPath,
+        CancellationToken ct)
+    {
+        // Track whether we could fully determine ownership. If any instance was unreachable,
+        // errored, or returned an unusable root folder, a later "no owner found" is unreliable
+        // and we must not delete a link one of those instances may own. This is independent of
+        // ownerConfirmedOrphan below, which is a definite answer and deletes regardless.
+        var anInstanceFailed = false;
+        var ownerConfirmedOrphan = false;
+
+        foreach (var arrClient in arrClients)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            List<ArrRootFolder> rootFolders;
+            try
+            {
+                rootFolders = await arrClient.GetRootFolders().ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                anInstanceFailed = true;
+                Log.Warning(e, "Health-check repair: could not query root folders from {Host}",
+                            arrClient.Host);
+                continue;
+            }
+
+            // Skip null/empty paths: StartsWith(null) throws, and StartsWith("") matches everything.
+            // A null/empty path is a malformed response we can't rule this instance in or out
+            // with, so if nothing else matches, treat it like an unreachable instance rather
+            // than falling through to a delete this instance may not have sanctioned.
+            if (!rootFolders.Any(x => !string.IsNullOrEmpty(x.Path) && symlinkOrStrmPath.StartsWith(x.Path)))
+            {
+                if (rootFolders.Any(x => string.IsNullOrEmpty(x.Path))) anInstanceFailed = true;
+                continue;
+            }
+
+            bool removedAndSearched;
+            try
+            {
+                removedAndSearched = await arrClient.RemoveAndSearch(symlinkOrStrmPath).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                anInstanceFailed = true;
+                Log.Warning(e, "Health-check repair: remove-and-search failed on {Host}",
+                            arrClient.Host);
+                continue;
+            }
+
+            if (removedAndSearched)
+                return ArrLinkedRepairDecision.RemoveAndSearchSucceeded;
+
+            // The owning instance was reached and reports no corresponding media-item, so this
+            // link is a confirmed orphan. Record that ownership was determined and break; the
+            // delete below then proceeds even if some other instance was unreachable.
+            ownerConfirmedOrphan = true;
+            break;
+        }
+
+        if (anInstanceFailed && !ownerConfirmedOrphan)
+            return ArrLinkedRepairDecision.DeferUnreachable;
+
+        return ArrLinkedRepairDecision.DeleteConfirmedOrphan;
+    }
+
     private async Task HandleUrgentRepair(DavItem davItem, DavDatabaseClient dbClient, CancellationToken ct)
     {
         var threshold = _configManager.GetAutoRemoveAfterFailures();
@@ -465,83 +555,35 @@ public class HealthCheckService : BackgroundService
             // if the unhealthy item is linked within the organized media-library
             // then we must find the corresponding arr instance and trigger a new search.
             var linkType = symlinkOrStrmPath.ToLower().EndsWith("strm") ? "strm-file" : "symlink";
+            var arrDecision = await DecideArrLinkedRepairAsync(
+                _configManager.GetArrConfig().GetArrClients(),
+                symlinkOrStrmPath,
+                ct).ConfigureAwait(false);
 
-            // Track whether we could fully determine ownership. If any instance was unreachable,
-            // errored, or returned an unusable root folder, a later "no owner found" is unreliable
-            // and we must not delete a link one of those instances may own. This is independent of
-            // ownerConfirmedOrphan below, which is a definite answer and deletes regardless.
-            var anInstanceFailed = false;
-            var ownerConfirmedOrphan = false;
-
-            foreach (var arrClient in _configManager.GetArrConfig().GetArrClients())
+            if (arrDecision == ArrLinkedRepairDecision.RemoveAndSearchSucceeded)
             {
-                List<ArrRootFolder> rootFolders;
-                try
-                {
-                    rootFolders = await arrClient.GetRootFolders().ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    anInstanceFailed = true;
-                    Log.Warning(e, "Health-check repair: could not query root folders from {Host}",
-                                arrClient.Host);
-                    continue;
-                }
-
-                // Skip null/empty paths: StartsWith(null) throws, and StartsWith("") matches everything.
-                // A null/empty path is a malformed response we can't rule this instance in or out
-                // with, so if nothing else matches, treat it like an unreachable instance rather
-                // than falling through to a delete this instance may not have sanctioned.
-                if (!rootFolders.Any(x => !string.IsNullOrEmpty(x.Path) && symlinkOrStrmPath.StartsWith(x.Path)))
-                {
-                    if (rootFolders.Any(x => string.IsNullOrEmpty(x.Path))) anInstanceFailed = true;
-                    continue;
-                }
-
-                bool removedAndSearched;
-                try
-                {
-                    removedAndSearched = await arrClient.RemoveAndSearch(symlinkOrStrmPath).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    anInstanceFailed = true;
-                    Log.Warning(e, "Health-check repair: remove-and-search failed on {Host}",
-                                arrClient.Host);
-                    continue;
-                }
-
-                if (removedAndSearched)
-                {
-                    DeletionAuditLog.Record(
-                        "health-repair",
-                        davItem,
-                        "missing articles; Arr remove-and-search triggered");
-                    dbClient.Ctx.Items.Remove(davItem);
-                    _failureTracker.ClearFailure(davItem.Id);
-                    await RecordHealthResult(
-                        dbClient, davItem,
-                        HealthCheckResult.HealthResult.Unhealthy,
-                        HealthCheckResult.RepairAction.Repaired,
-                        string.Join(" ", [
-                            "File had missing articles.",
-                            $"Corresponding {linkType} found within Library Dir.",
-                            "Triggered new Arr search."
-                        ]), ct).ConfigureAwait(false);
-                    return;
-                }
-
-                // The owning instance was reached and reports no corresponding media-item, so this
-                // link is a confirmed orphan. Record that ownership was determined and break; the
-                // delete below then proceeds even if some other instance was unreachable.
-                ownerConfirmedOrphan = true;
-                break;
+                DeletionAuditLog.Record(
+                    "health-repair",
+                    davItem,
+                    "missing articles; Arr remove-and-search triggered");
+                dbClient.Ctx.Items.Remove(davItem);
+                _failureTracker.ClearFailure(davItem.Id);
+                await RecordHealthResult(
+                    dbClient, davItem,
+                    HealthCheckResult.HealthResult.Unhealthy,
+                    HealthCheckResult.RepairAction.Repaired,
+                    string.Join(" ", [
+                        "File had missing articles.",
+                        $"Corresponding {linkType} found within Library Dir.",
+                        "Triggered new Arr search."
+                    ]), ct).ConfigureAwait(false);
+                return;
             }
 
             // Ownership indeterminate (an instance could not be reached or fully queried, and no
             // instance confirmed the file as an orphan): don't delete a link it may own. Defer like
             // the catch below so the item isn't re-selected every scan cycle while the instance is down.
-            if (anInstanceFailed && !ownerConfirmedOrphan)
+            if (arrDecision == ArrLinkedRepairDecision.DeferUnreachable)
             {
                 var utcNow = DateTimeOffset.UtcNow;
                 davItem.LastHealthCheck = utcNow;
