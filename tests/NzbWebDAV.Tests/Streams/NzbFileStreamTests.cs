@@ -2,6 +2,7 @@ using System.Text;
 using NzbWebDAV.Models;
 using NzbWebDAV.Streams;
 using NzbWebDAV.Tests.Fakes;
+using NzbWebDAV.Tests.TestUtils;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -25,13 +26,14 @@ public class NzbFileStreamTests
         new(10, 15)
     ];
 
-    [Theory]
+    [SkippableTheory]
     [InlineData(0, "abcdefghijklmno")]
     [InlineData(1, "abcdefghijklmno")]
     [InlineData(4, "abcdefghijklmno")]
     public async Task ReadAsync_ConcatenatesSegmentsWithConfiguredPipeline(
         int articleBufferSize, string expected)
     {
+        Skip.IfNot(RapidYenc.IsAvailable, "rapidyenc native library not available on this platform");
         var client = CreateClient();
         await using var stream = new NzbFileStream(
             SegmentIds, 15, client, articleBufferSize, SegmentRanges);
@@ -71,7 +73,7 @@ public class NzbFileStreamTests
             Assert.Equal(SegmentIds.Length, client.BodyRequestCount);
     }
 
-    [Theory]
+    [SkippableTheory]
     [InlineData(0, "abc")]
     [InlineData(4, "efg")]
     [InlineData(5, "fgh")]
@@ -79,6 +81,7 @@ public class NzbFileStreamTests
     [InlineData(14, "o")]
     public async Task Seek_ReadsAcrossSegmentBoundaries(long offset, string expected)
     {
+        Skip.IfNot(RapidYenc.IsAvailable, "rapidyenc native library not available on this platform");
         var client = CreateClient();
         await using var stream = new NzbFileStream(
             SegmentIds, 15, client, 2, SegmentRanges);
@@ -103,9 +106,10 @@ public class NzbFileStreamTests
             () => stream.Seek(16, SeekOrigin.Begin));
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task SmallForwardSeek_DrainsExistingPipeline()
     {
+        Skip.IfNot(RapidYenc.IsAvailable, "rapidyenc native library not available on this platform");
         var client = CreateClient();
         await using var stream = new NzbFileStream(
             SegmentIds, 15, client, 2, SegmentRanges);

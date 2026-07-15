@@ -47,6 +47,8 @@ cd frontend && npm install && npm run dev
 
 `npm run dev` silently runs `scripts/sync-dev-env.sh` via the `predev` hook; if the API key drifts, restart the backend with `scripts/run-backend.sh`. The manual `dotnet publish` / env-var flow below remains supported.
 
+yEnc-decoding tests are skipped on platforms where the rapidyenc native library is unavailable (currently macOS arm64); they run in Linux CI.
+
 ## Build / run backend
 
 The `NzbDav.UsenetSharp` dependency is published on NuGet.org and restores without
