@@ -1,0 +1,132 @@
+using System.Text.Json;
+using NzbWebDAV.Clients.Usenet;
+using NzbWebDAV.Config;
+using NzbWebDAV.Database.Models;
+using NzbWebDAV.Models;
+using NzbWebDAV.Services;
+using NzbWebDAV.Services.Metrics;
+using NzbWebDAV.Websocket;
+
+namespace NzbWebDAV.Tests.Config;
+
+public class UsenetProvidersValidationTests
+{
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ValidateConfigItems_RejectsNonPositiveMaxConnections(int maxConnections)
+    {
+        var items = ProvidersConfigItems(MakeProvider(maxConnections: maxConnections, nickname: "bad-pool"));
+        var ex = Assert.Throws<ArgumentException>(() => ConfigManager.ValidateConfigItems(items));
+        Assert.Contains("max connections must be at least 1", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("bad-pool", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(70000)]
+    public void ValidateConfigItems_RejectsInvalidPort(int port)
+    {
+        var items = ProvidersConfigItems(MakeProvider(port: port, nickname: "port-bad"));
+        var ex = Assert.Throws<ArgumentException>(() => ConfigManager.ValidateConfigItems(items));
+        Assert.Contains("port must be between 1 and 65535", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("port-bad", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateConfigItems_RejectsEmptyHost()
+    {
+        var items = ProvidersConfigItems(MakeProvider(host: "   "));
+        var ex = Assert.Throws<ArgumentException>(() => ConfigManager.ValidateConfigItems(items));
+        Assert.Contains("host must not be empty", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Provider #1", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateConfigItems_RejectsNegativeByteLimit()
+    {
+        var items = ProvidersConfigItems(MakeProvider(byteLimit: -1, nickname: "block"));
+        var ex = Assert.Throws<ArgumentException>(() => ConfigManager.ValidateConfigItems(items));
+        Assert.Contains("byte limit must not be negative", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("block", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateConfigItems_RejectsDisabledProviderWithZeroMaxConnections()
+    {
+        var items = ProvidersConfigItems(MakeProvider(
+            type: ProviderType.Disabled,
+            maxConnections: 0,
+            nickname: "disabled-zero"));
+        var ex = Assert.Throws<ArgumentException>(() => ConfigManager.ValidateConfigItems(items));
+        Assert.Contains("max connections must be at least 1", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("disabled-zero", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateConfigItems_AcceptsValidMultiProviderPayload()
+    {
+        var items = ProvidersConfigItems(
+            MakeProvider(host: "pool.example", maxConnections: 20, nickname: "pool"),
+            MakeProvider(host: "backup.example", type: ProviderType.BackupOnly, maxConnections: 5, nickname: "backup"),
+            MakeProvider(host: "off.example", type: ProviderType.Disabled, maxConnections: 1, nickname: "off"));
+
+        ConfigManager.ValidateConfigItems(items);
+    }
+
+    [Fact]
+    public void UsenetStreamingClient_ClampsLegacyZeroMaxConnectionsWithoutThrowing()
+    {
+        // Bypass ValidateConfigItems to simulate a pre-existing bad DB row.
+        var config = new ConfigManager();
+        config.UpdateValues(ProvidersConfigItems(MakeProvider(maxConnections: 0, nickname: "legacy-zero")));
+
+        var client = new UsenetStreamingClient(
+            config,
+            new WebsocketManager(),
+            new ProviderUsageTracker(),
+            new MetricsWriter(),
+            new ProviderBytesTracker());
+
+        Assert.NotNull(client);
+        client.Dispose();
+    }
+
+    private static List<ConfigItem> ProvidersConfigItems(
+        params UsenetProviderConfig.ConnectionDetails[] providers)
+    {
+        return
+        [
+            new ConfigItem
+            {
+                ConfigName = ConfigKeys.UsenetProviders,
+                ConfigValue = JsonSerializer.Serialize(new UsenetProviderConfig
+                {
+                    Providers = [.. providers],
+                }),
+            },
+        ];
+    }
+
+    private static UsenetProviderConfig.ConnectionDetails MakeProvider(
+        string host = "nntp.example",
+        int port = 563,
+        int maxConnections = 10,
+        ProviderType type = ProviderType.Pooled,
+        string? nickname = null,
+        long? byteLimit = null)
+    {
+        return new UsenetProviderConfig.ConnectionDetails
+        {
+            Type = type,
+            Host = host,
+            Port = port,
+            UseSsl = true,
+            User = "u",
+            Pass = "p",
+            MaxConnections = maxConnections,
+            Nickname = nickname,
+            ByteLimit = byteLimit,
+        };
+    }
+}

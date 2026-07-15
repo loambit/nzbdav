@@ -23,9 +23,19 @@ public class UsenetStreamingClient : WrappingNntpClient
             // if unrelated config changed, do nothing
             if (!configEventArgs.ChangedConfig.ContainsKey(ConfigKeys.UsenetProviders)) return;
 
-            // update the connection-pool according to the new config
-            var newUsenetClient = CreateDownloadingNntpClient(configManager, websocketManager, usageTracker, metricsWriter, bytesTracker);
-            ReplaceUnderlyingClient(newUsenetClient);
+            try
+            {
+                // update the connection-pool according to the new config
+                var newUsenetClient = CreateDownloadingNntpClient(
+                    configManager, websocketManager, usageTracker, metricsWriter, bytesTracker);
+                ReplaceUnderlyingClient(newUsenetClient);
+            }
+            catch (Exception e)
+            {
+                // Keep the previous (working) client and let remaining OnConfigChanged
+                // subscribers run — a throw from a multicast handler aborts the rest.
+                Log.Error(e, "Failed to rebuild usenet client after provider config change; keeping previous client");
+            }
         };
     }
 
@@ -102,8 +112,20 @@ public class UsenetStreamingClient : WrappingNntpClient
         int idleTimeoutSeconds
     )
     {
+        var maxConnections = connectionDetails.MaxConnections;
+        if (maxConnections < 1)
+        {
+            Log.Warning(
+                "Provider '{Provider}' has MaxConnections={MaxConnections}; clamping to 1 so the connection pool can start",
+                string.IsNullOrWhiteSpace(connectionDetails.Nickname)
+                    ? connectionDetails.Host
+                    : connectionDetails.Nickname,
+                maxConnections);
+            maxConnections = 1;
+        }
+
         var connectionPool = CreateNewConnectionPool(
-            maxConnections: connectionDetails.MaxConnections,
+            maxConnections: maxConnections,
             connectionFactory: ct => CreateNewConnection(connectionDetails, ct),
             onConnectionPoolChanged,
             idleTimeoutSeconds

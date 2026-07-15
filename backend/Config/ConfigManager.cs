@@ -243,7 +243,7 @@ public class ConfigManager
                     break;
 
                 case ConfigKeys.UsenetProviders:
-                    RequireJson<UsenetProviderConfig>(item.ConfigName, value);
+                    RequireValidUsenetProviders(item.ConfigName, value);
                     break;
 
                 case ConfigKeys.ArrInstances:
@@ -283,6 +283,34 @@ public class ConfigManager
             catch (JsonException e)
             {
                 throw new ArgumentException($"Config value for '{key}' is not valid JSON: {e.Message}");
+            }
+        }
+
+        static void RequireValidUsenetProviders(string key, string value)
+        {
+            UsenetProviderConfig? config;
+            try
+            {
+                config = JsonSerializer.Deserialize<UsenetProviderConfig>(value);
+            }
+            catch (JsonException e)
+            {
+                throw new ArgumentException($"Config value for '{key}' is not valid JSON: {e.Message}");
+            }
+
+            if (config?.Providers is null) return;
+            for (var i = 0; i < config.Providers.Count; i++)
+            {
+                var p = config.Providers[i];
+                var label = string.IsNullOrWhiteSpace(p.Nickname) ? p.Host : p.Nickname;
+                if (string.IsNullOrWhiteSpace(p.Host))
+                    throw new ArgumentException($"Provider #{i + 1}: host must not be empty.");
+                if (p.Port is < 1 or > 65535)
+                    throw new ArgumentException($"Provider '{label}': port must be between 1 and 65535, but was {p.Port}.");
+                if (p.MaxConnections < 1)
+                    throw new ArgumentException($"Provider '{label}': max connections must be at least 1, but was {p.MaxConnections}.");
+                if (p.ByteLimit is < 0)
+                    throw new ArgumentException($"Provider '{label}': byte limit must not be negative.");
             }
         }
     }
