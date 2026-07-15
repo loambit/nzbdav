@@ -51,29 +51,46 @@ public class CreateStrmFilesPostProcessor(
         FilenameUtil.IsVideoFile(item.Name)
         && !item.Name.EndsWith(".strm", StringComparison.OrdinalIgnoreCase);
 
-    private async Task CreateStrmFileAsync(DavItem davItem)
+    /// <summary>
+    /// Writes (or updates) the STRM sidecar for a DavItem. Shared by queue post-processing
+    /// and the Recreate STRM maintenance task.
+    /// </summary>
+    internal static async Task WriteStrmFileAsync(
+        ConfigManager configManager,
+        DavItem davItem,
+        bool forceRewrite,
+        CancellationToken cancellationToken = default)
     {
-        var strmFilePath = GetStrmFilePath(davItem);
+        if (!IsStrmCandidate(davItem))
+            return;
+
+        var strmFilePath = GetStrmFilePath(configManager, davItem);
         var directoryName = Path.GetDirectoryName(strmFilePath);
         if (directoryName != null)
-            await Task.Run(() => Directory.CreateDirectory(directoryName)).ConfigureAwait(false);
+            await Task.Run(() => Directory.CreateDirectory(directoryName), cancellationToken).ConfigureAwait(false);
 
-        var targetUrl = GetStrmTargetUrl(davItem);
-        if (File.Exists(strmFilePath))
+        var targetUrl = GetStrmTargetUrl(configManager, davItem);
+        if (!forceRewrite && File.Exists(strmFilePath))
         {
-            var existing = await File.ReadAllTextAsync(strmFilePath).ConfigureAwait(false);
+            var existing = await File.ReadAllTextAsync(strmFilePath, cancellationToken).ConfigureAwait(false);
             if (existing == targetUrl)
                 return;
         }
 
-        await File.WriteAllTextAsync(strmFilePath, targetUrl).ConfigureAwait(false);
+        await File.WriteAllTextAsync(strmFilePath, targetUrl, cancellationToken).ConfigureAwait(false);
     }
 
-    internal string GetStrmFilePath(DavItem davItem)
+    private async Task CreateStrmFileAsync(DavItem davItem) =>
+        await WriteStrmFileAsync(configManager, davItem, forceRewrite: false).ConfigureAwait(false);
+
+    internal static string GetStrmFilePath(ConfigManager configManager, DavItem davItem)
     {
         var relativePath = GetPathRelativeToContentRoot(davItem.Path) + ".strm";
         return Path.Join(configManager.GetStrmCompletedDownloadDir(), relativePath);
     }
+
+    internal string GetStrmFilePath(DavItem davItem) =>
+        GetStrmFilePath(configManager, davItem);
 
     internal static string GetPathRelativeToContentRoot(string davPath)
     {
@@ -85,7 +102,7 @@ public class CreateStrmFilesPostProcessor(
         return parts.Length > 2 ? Path.Join(parts[2..]) : Path.GetFileName(davPath);
     }
 
-    private string GetStrmTargetUrl(DavItem davItem)
+    internal static string GetStrmTargetUrl(ConfigManager configManager, DavItem davItem)
     {
         var baseUrl = configManager.GetBaseUrl();
         if (baseUrl.EndsWith('/')) baseUrl = baseUrl.TrimEnd('/');
@@ -96,4 +113,7 @@ public class CreateStrmFilesPostProcessor(
         var extension = Path.GetExtension(davItem.Name).ToLower().TrimStart('.');
         return $"{baseUrl}/view/{pathUrl}?downloadKey={downloadKey}&extension={extension}";
     }
+
+    private string GetStrmTargetUrl(DavItem davItem) =>
+        GetStrmTargetUrl(configManager, davItem);
 }

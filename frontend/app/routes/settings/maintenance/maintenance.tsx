@@ -2,6 +2,7 @@ import { SettingsPage } from "~/components/ui";
 import { Checkbox, Input, Select } from "~/components/ui/form";
 import { RemoveUnlinkedFiles } from "./remove-unlinked-files/remove-unlinked-files";
 import { ConvertStrmToSymlinks } from "./strm-to-symlinks/strm-to-symlinks";
+import { RecreateStrmFiles } from "./recreate-strm-files/recreate-strm-files";
 import { MigrateDatabaseFilesToBlobstore } from "./migrate-database-files-to-blobstore/migrate-database-files-to-blobstore";
 import { ResetHealthCheckStats } from "./reset-health-check-stats/reset-health-check-stats";
 import type { Dispatch, SetStateAction } from "react";
@@ -155,6 +156,14 @@ export function Maintenance({ savedConfig, config, setNewConfig }: MaintenancePr
                         </summary>
                         <div className={'border-t border-slate-700/70 p-4'}>
                             <ConvertStrmToSymlinks savedConfig={savedConfig} />
+                        </div>
+                    </details>
+                    <details className={'overflow-hidden rounded border border-slate-700/70'}>
+                        <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-semibold text-white hover:bg-white/5">
+                            Recreate STRM Files
+                        </summary>
+                        <div className={'border-t border-slate-700/70 p-4'}>
+                            <RecreateStrmFiles savedConfig={savedConfig} />
                         </div>
                     </details>
                     <details className={'overflow-hidden rounded border border-slate-700/70'}>
