@@ -1,0 +1,33 @@
+using Microsoft.AspNetCore.Mvc;
+using NzbWebDAV.Services.StreamTrace;
+
+namespace NzbWebDAV.Api.Controllers.GetStreamTraces;
+
+[ApiController]
+[Route("api/get-stream-traces")]
+public class GetStreamTracesController(StreamTraceBuffer buffer) : BaseApiController
+{
+    protected override Task<IActionResult> HandleRequest()
+    {
+        var limit = int.TryParse(HttpContext.Request.Query["limit"].ToString(), out var n)
+            ? Math.Clamp(n, 1, 500)
+            : 50;
+
+        var sessions = buffer.ListSessions(limit);
+        return Task.FromResult<IActionResult>(Ok(new GetStreamTracesResponse
+        {
+            Status = true,
+            Enabled = buffer.Enabled,
+            Capacity = buffer.Capacity,
+            Sessions = sessions.Select(s => new StreamTraceSessionDto
+            {
+                SessionId = s.SessionId,
+                Path = s.Path,
+                FirstAt = s.FirstAt,
+                LastAt = s.LastAt,
+                EventCount = s.EventCount,
+                LastKind = s.LastKind,
+            }).ToList(),
+        }));
+    }
+}

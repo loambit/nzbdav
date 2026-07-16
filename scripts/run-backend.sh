@@ -28,6 +28,9 @@ Environment (defaults shown):
   CONFIG_PATH=/tmp/nzbdav-config
   BACKEND_URL=http://localhost:5000
   FRONTEND_BACKEND_API_KEY=<persisted in $CONFIG_PATH/.frontend-backend-api-key>
+  LOG_LEVEL=Debug
+  LOG_BUFFER_SIZE=2000
+  STREAM_TRACE_EVENTS=20000
 
 frontend/.env is written automatically for npm run dev.
 EOF
@@ -66,6 +69,10 @@ done
 export CONFIG_PATH="${CONFIG_PATH:-/tmp/nzbdav-config}"
 export BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
 export ASPNETCORE_URLS="${ASPNETCORE_URLS:-$BACKEND_URL}"
+# Local-dev defaults only (Docker/entrypoint leave LOG_LEVEL unset → Information).
+export LOG_LEVEL="${LOG_LEVEL:-Debug}"
+export LOG_BUFFER_SIZE="${LOG_BUFFER_SIZE:-2000}"
+export STREAM_TRACE_EVENTS="${STREAM_TRACE_EVENTS:-20000}"
 
 API_KEY_FILE="$CONFIG_PATH/.frontend-backend-api-key"
 if [[ -z "${FRONTEND_BACKEND_API_KEY:-}" ]]; then

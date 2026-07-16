@@ -19,6 +19,7 @@ using NzbWebDAV.Middlewares;
 using NzbWebDAV.Queue;
 using NzbWebDAV.Services;
 using NzbWebDAV.Services.Metrics;
+using NzbWebDAV.Services.StreamTrace;
 using NzbWebDAV.Utils;
 using NzbWebDAV.WebDav;
 using NzbWebDAV.WebDav.Base;
@@ -47,6 +48,13 @@ class Program
         var level = Enum.TryParse<LogEventLevel>(envLevel, true, out var parsed) ? parsed : defaultLevel;
         var bufferSize = (int)Math.Clamp(EnvironmentUtil.GetLongVariable("LOG_BUFFER_SIZE") ?? 2000, 100, 50000);
         var logBufferSink = new LogBufferSink(bufferSize);
+        // Stream tracing is opt-in: unset or 0 disables it. scripts/run-backend.sh
+        // enables it for local dev; Docker/production leave it off by default.
+        var streamTraceEvents = EnvironmentUtil.GetLongVariable("STREAM_TRACE_EVENTS") ?? 0;
+        var streamTraceBuffer = new StreamTraceBuffer(
+            (int)Math.Clamp(streamTraceEvents, 100, 200000),
+            enabled: streamTraceEvents > 0);
+        StreamTrace.Configure(streamTraceBuffer);
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Is(level)
             .MinimumLevel.Override("NWebDAV", AtLeast(level, LogEventLevel.Warning))
@@ -76,6 +84,10 @@ class Program
                 "ThreadPool configured with minimum {MinThreads} and maximum {MaxThreads} worker and IOCP threads",
                 minThreads,
                 maxThreads);
+            if (streamTraceBuffer.Enabled)
+                Log.Information(
+                    "Stream tracing enabled with a capacity of {Capacity} events (STREAM_TRACE_EVENTS)",
+                    streamTraceBuffer.Capacity);
 
             // run database migration / restore, if necessary.
             // Restore must run before opening the live DavDatabaseContext so pending
@@ -145,6 +157,7 @@ class Program
                 .AddSingleton(configManager)
                 .AddSingleton(websocketManager)
                 .AddSingleton(logBufferSink)
+                .AddSingleton(streamTraceBuffer)
                 .AddSingleton<BenchmarkGate>()
                 .AddHostedService<LogBroadcaster>()
                 .AddSingleton<ActiveReadRegistry>()
