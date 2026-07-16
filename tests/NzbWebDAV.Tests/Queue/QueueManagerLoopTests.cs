@@ -32,6 +32,57 @@ public class QueueManagerLoopTests
     }
 
     [Fact]
+    public async Task ProcessQueueAsync_WakesBeforeIdleDelayWhenPauseExpires()
+    {
+        using var manager = CreateManager();
+        manager.IdleDelay = TimeSpan.FromSeconds(30);
+
+        var pollTimes = new List<DateTime>();
+        var pauseCalls = 0;
+        manager.GetTopQueueItemOverride = _ =>
+        {
+            lock (pollTimes) pollTimes.Add(DateTime.UtcNow);
+            return Task.FromResult<(QueueItem? queueItem, Stream? queueNzbStream)>((null, null));
+        };
+        manager.GetNextPauseUntilOverride = _ =>
+        {
+            var call = Interlocked.Increment(ref pauseCalls);
+            return Task.FromResult<DateTime?>(
+                call == 1 ? DateTime.Now.AddSeconds(2) : null);
+        };
+
+        using var cts = new CancellationTokenSource();
+        var loop = manager.ProcessQueueAsync(cts.Token);
+
+        // Wait until we've seen a second top-item poll (pause-aware wake), then stop.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(8);
+        while (DateTime.UtcNow < deadline)
+        {
+            lock (pollTimes)
+            {
+                if (pollTimes.Count >= 2) break;
+            }
+            await Task.Delay(50);
+        }
+
+        await cts.CancelAsync();
+        await loop;
+
+        DateTime first;
+        DateTime second;
+        lock (pollTimes)
+        {
+            Assert.True(pollTimes.Count >= 2, $"Expected ≥2 polls, got {pollTimes.Count}");
+            first = pollTimes[0];
+            second = pollTimes[1];
+        }
+
+        var gap = second - first;
+        Assert.True(gap < TimeSpan.FromSeconds(5),
+            $"Second poll should wake within ~5s of pause expiry, took {gap.TotalSeconds:F1}s");
+    }
+
+    [Fact]
     public async Task ProcessQueueAsync_ExitsIdleSleepPromptlyOnShutdown()
     {
         using var manager = CreateManager();

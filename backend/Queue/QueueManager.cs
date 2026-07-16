@@ -3,6 +3,7 @@ using NzbWebDAV.Clients.Usenet;
 using NzbWebDAV.Config;
 using NzbWebDAV.Database;
 using NzbWebDAV.Database.Models;
+using NzbWebDAV.Extensions;
 using NzbWebDAV.Services;
 using NzbWebDAV.Services.Metrics;
 using NzbWebDAV.Utils;
@@ -37,6 +38,7 @@ public class QueueManager : IDisposable
     internal Func<CancellationToken, Task<(QueueItem? queueItem, Stream? queueNzbStream)>>?
         GetTopQueueItemOverride
     { get; set; }
+    internal Func<CancellationToken, Task<DateTime?>>? GetNextPauseUntilOverride { get; set; }
 
     public QueueManager(
         UsenetStreamingClient usenetClient,
@@ -154,12 +156,14 @@ public class QueueManager : IDisposable
                     {
                         try
                         {
-                            // if we're done with the queue, wait a minute before checking again.
-                            // or wait until awoken by cancellation of _sleepingQueueToken /
-                            // process shutdown (ct).
+                            // if we're done with the queue, wait until the next retry pause
+                            // expires (or IdleDelay, whichever is sooner). Also wake early
+                            // on cancellation of _sleepingQueueToken / process shutdown (ct).
+                            var idleDelay = await ComputeIdleDelayAsync(dbClient, ct)
+                                .ConfigureAwait(false);
                             using var idleWait = CancellationTokenSource.CreateLinkedTokenSource(
                                 ct, _sleepingQueueToken.Token);
-                            await Task.Delay(IdleDelay, idleWait.Token).ConfigureAwait(false);
+                            await Task.Delay(idleDelay, idleWait.Token).ConfigureAwait(false);
                         }
                         catch when (_sleepingQueueToken.IsCancellationRequested)
                         {
@@ -331,6 +335,34 @@ public class QueueManager : IDisposable
         finally
         {
             _semaphore.Release();
+        }
+    }
+
+    private async Task<TimeSpan> ComputeIdleDelayAsync(
+        DavDatabaseClient? dbClient, CancellationToken ct)
+    {
+        try
+        {
+            DateTime? nextPause;
+            if (GetNextPauseUntilOverride is not null)
+                nextPause = await GetNextPauseUntilOverride(ct).ConfigureAwait(false);
+            else if (dbClient is not null)
+                nextPause = await dbClient.GetNextQueueItemPauseUntil(ct).ConfigureAwait(false);
+            else
+                return IdleDelay;
+
+            if (nextPause is null) return IdleDelay;
+
+            // Small buffer so we wake just AFTER the pause expires; waking a hair
+            // early would find no eligible item and sleep a full IdleDelay again.
+            var untilNextPause = nextPause.Value - DateTime.Now + TimeSpan.FromMilliseconds(250);
+            if (untilNextPause <= TimeSpan.Zero) return TimeSpan.FromMilliseconds(250);
+            return untilNextPause < IdleDelay ? untilNextPause : IdleDelay;
+        }
+        catch (Exception e) when (!e.IsCancellationException())
+        {
+            Log.Debug(e, "Failed to compute next queue pause; falling back to idle delay");
+            return IdleDelay;
         }
     }
 

@@ -192,6 +192,17 @@ public sealed class DavDatabaseClient(DavDatabaseContext ctx)
         return (queueItem, queueNzbStream);
     }
 
+    public Task<DateTime?> GetNextQueueItemPauseUntil(CancellationToken ct = default)
+    {
+        // Matches GetTopQueueItem's local-time convention (PauseUntil is written
+        // with DateTime.Now). MIN over an empty set yields null.
+        var nowTime = DateTime.Now;
+        return Ctx.QueueItems
+            .AsNoTracking()
+            .Where(q => q.PauseUntil != null && q.PauseUntil > nowTime)
+            .MinAsync(q => q.PauseUntil, ct);
+    }
+
     public Task<QueueItem[]> GetQueueItems
     (
         string? category,
