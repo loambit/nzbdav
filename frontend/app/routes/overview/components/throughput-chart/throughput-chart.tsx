@@ -31,63 +31,36 @@ export function ThroughputChart({
 
     const bucketSeconds = Math.max(1, (bucketSizeMs || 60_000) / 1000);
 
-    const {
-        articlesPath,
-        errorsPath,
-        networkPath,
-        maxArticles,
-        maxNetworkRate,
-        xPercent,
-        yPercent,
-        yNetworkPercent,
-    } = useMemo(() => {
+    const { articlesPath, errorsPath, maxArticles, maxNetworkRate, xPercent, yPercent } = useMemo(() => {
         if (points.length === 0) {
             return {
                 articlesPath: "",
                 errorsPath: "",
-                networkPath: "",
                 maxArticles: 0,
                 maxNetworkRate: 0,
                 xPercent: (_: number) => 0,
                 yPercent: (_: number) => 0,
-                yNetworkPercent: (_: number) => 0,
             };
         }
         const max = Math.max(1, ...points.map(p => p.articles));
         const maxRate = Math.max(0, ...points.map(p => (p.bytesFetched ?? 0) / bucketSeconds));
         const xStep = points.length > 1 ? VB_W / (points.length - 1) : 0;
         const innerH = VB_H - TOP_PAD - BOT_PAD;
-        const yArticles = (v: number) => VB_H - BOT_PAD - (v / max) * innerH;
-        const yNetwork = (rate: number) =>
-            maxRate > 0
-                ? VB_H - BOT_PAD - (rate / maxRate) * innerH
-                : VB_H - BOT_PAD;
+        const y = (v: number) => VB_H - BOT_PAD - (v / max) * innerH;
 
         const buildArticlesPath = () =>
-            points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * xStep).toFixed(1)},${yArticles(p.articles).toFixed(1)}`).join(" ");
-
-        const buildNetworkPath = () =>
-            points.map((p, i) => {
-                const rate = (p.bytesFetched ?? 0) / bucketSeconds;
-                return `${i === 0 ? "M" : "L"}${(i * xStep).toFixed(1)},${yNetwork(rate).toFixed(1)}`;
-            }).join(" ");
+            points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * xStep).toFixed(1)},${y(p.articles).toFixed(1)}`).join(" ");
 
         const xPct = (i: number) => points.length > 1 ? (i / (points.length - 1)) * 100 : 50;
         const yPct = (v: number) => 100 - ((v / max) * (1 - (TOP_PAD + BOT_PAD) / VB_H) * 100 + (BOT_PAD / VB_H) * 100);
-        const yNetPct = (rate: number) =>
-            maxRate > 0
-                ? 100 - ((rate / maxRate) * (1 - (TOP_PAD + BOT_PAD) / VB_H) * 100 + (BOT_PAD / VB_H) * 100)
-                : 100 - (BOT_PAD / VB_H) * 100;
 
         return {
             articlesPath: buildArticlesPath(),
-            errorsPath: buildSparseErrorsPath(points, xStep, yArticles),
-            networkPath: buildNetworkPath(),
+            errorsPath: buildSparseErrorsPath(points, xStep, y),
             maxArticles: max,
             maxNetworkRate: maxRate,
             xPercent: xPct,
             yPercent: yPct,
-            yNetworkPercent: yNetPct,
         };
     }, [points, bucketSeconds]);
 
@@ -120,11 +93,10 @@ export function ThroughputChart({
         if (t) onMove(t.clientX, e.currentTarget);
     };
 
-    const hasData = points.length > 0 && (maxArticles > 0 || maxNetworkRate > 0);
+    const hasData = points.length > 0 && maxArticles > 0;
     const bucketLabel = window === "1h" || window === "24h" ? "min" : (window === "all" ? "day" : "hour");
     const hover = hoverIdx !== null ? points[hoverIdx] : null;
     const hoverNetworkRate = hover ? (hover.bytesFetched ?? 0) / bucketSeconds : 0;
-    const showNetwork = maxNetworkRate > 0;
     const tooltipPlacement = hoverIdx === null || points.length < 2
         ? "tooltip-top"
         : (() => {
@@ -171,7 +143,6 @@ export function ThroughputChart({
                                 <line x1="0" y1={(VB_H / 2).toFixed(1)} x2={VB_W} y2={(VB_H / 2).toFixed(1)} className={styles.gridline} />
                                 <line x1="0" y1={TOP_PAD.toFixed(1)} x2={VB_W} y2={TOP_PAD.toFixed(1)} className={styles.gridline} />
                                 <path d={articlesPath} className={styles.lineArticles} />
-                                {showNetwork && <path d={networkPath} className={styles.lineNetwork} />}
                                 {totalErrors > 0 && errorsPath && <path d={errorsPath} className={styles.lineErrors} />}
                             </svg>
 
@@ -189,14 +160,12 @@ export function ThroughputChart({
                                             <div className="space-y-0.5 text-left font-mono text-xs">
                                                 <div className="font-semibold">{formatBucketTime(hover.bucket, window)}</div>
                                                 <div>{formatNumber(hover.articles)} articles</div>
+                                                {hoverNetworkRate > 0 && (
+                                                    <div>{formatBytes(hoverNetworkRate)}/s downloaded</div>
+                                                )}
                                                 {(hover.misses ?? 0) > 0 && <div>{formatNumber(hover.misses)} misses</div>}
                                                 {hover.errors > 0 && (
                                                     <div className="text-error">{formatNumber(hover.errors)} errors</div>
-                                                )}
-                                                {hoverNetworkRate > 0 && (
-                                                    <div className={styles.tooltipNetwork}>
-                                                        {formatBytes(hoverNetworkRate)}/s downloaded
-                                                    </div>
                                                 )}
                                                 {hover.bytesServed > 0 && (
                                                     <div>{formatBytes(hover.bytesServed)} served</div>
@@ -205,15 +174,6 @@ export function ThroughputChart({
                                         </div>
                                         <span className={styles.hoverDotAnchor} />
                                     </div>
-                                    {showNetwork && hoverNetworkRate > 0 && (
-                                        <div
-                                            className={`${styles.hoverDot} ${styles.hoverDotNetwork}`}
-                                            style={{
-                                                left: `${xPercent(hoverIdx)}%`,
-                                                top: `${yNetworkPercent(hoverNetworkRate)}%`,
-                                            }}
-                                        />
-                                    )}
                                     {totalErrors > 0 && hover.errors > 0 && (
                                         <div
                                             className={`${styles.hoverDot} ${styles.hoverDotErr}`}
@@ -226,16 +186,9 @@ export function ThroughputChart({
                                 </>
                             )}
                         </div>
-                        {showNetwork && (
-                            <div className={`${styles.yAxis} ${styles.yAxisRight}`}>
-                                <span>{formatBytes(maxNetworkRate)}/s</span>
-                                <span>{formatBytes(maxNetworkRate / 2)}/s</span>
-                                <span>0</span>
-                            </div>
-                        )}
                     </div>
 
-                    <div className={`${styles.xAxis} ${showNetwork ? styles.xAxisWithRight : ""}`}>
+                    <div className={styles.xAxis}>
                         {xTicks.map(t => (
                             <span
                                 key={t.idx}
@@ -248,12 +201,13 @@ export function ThroughputChart({
                     </div>
 
                     <div className={styles.legend}>
-                        <span className={styles.legendItem}><span className={`${styles.swatch} ${styles.swatchArticles}`} /> Articles</span>
-                        {showNetwork && (
-                            <span className={styles.legendItem}>
-                                <span className={`${styles.swatch} ${styles.swatchNetwork}`} /> Download
-                            </span>
-                        )}
+                        <span className={styles.legendItem}>
+                            <span className={`${styles.swatch} ${styles.swatchArticles}`} />
+                            Articles
+                            {maxNetworkRate > 0 && (
+                                <> · peak {formatBytes(maxNetworkRate)}/s</>
+                            )}
+                        </span>
                         {totalErrors > 0 && <span className={styles.legendItem}><span className={`${styles.swatch} ${styles.swatchErrors}`} /> Errors</span>}
                         <span className={styles.legendRight}>
                             Peak {formatNumber(maxArticles)} / {bucketLabel} · hover for details
