@@ -99,6 +99,20 @@ public class CreateNewConnectionTests
         Assert.Equal("secret", fake.LastAuthPass);
     }
 
+    [Fact]
+    public async Task CreateNewConnection_RejectsControlCharactersInCredentials()
+    {
+        var fake = new HandshakeNntpClient();
+        var details = MakeDetails();
+        details.User = "user\r\nQUIT";
+
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await UsenetStreamingClient.CreateNewConnection(details, () => fake, CancellationToken.None));
+
+        Assert.False(fake.Connected);
+        Assert.Equal(0, fake.DisposeCount);
+    }
+
     private static UsenetProviderConfig.ConnectionDetails MakeDetails() =>
         new()
         {

@@ -209,6 +209,15 @@ public class UsenetStreamingClient : WrappingNntpClient
         CancellationToken ct
     )
     {
+        if (ContainsControlChars(connectionDetails.Host) ||
+            ContainsControlChars(connectionDetails.User) ||
+            ContainsControlChars(connectionDetails.Pass) ||
+            connectionDetails.Host.Contains(' '))
+        {
+            throw new ArgumentException(
+                "Provider host/username/password must not contain whitespace or control characters.");
+        }
+
         var connection = connectionFactory();
         try
         {
@@ -231,5 +240,8 @@ public class UsenetStreamingClient : WrappingNntpClient
             connection.Dispose();
             throw;
         }
+
+        static bool ContainsControlChars(string? s) =>
+            !string.IsNullOrEmpty(s) && s.Any(c => c < 0x20 || c == 0x7F);
     }
 }
