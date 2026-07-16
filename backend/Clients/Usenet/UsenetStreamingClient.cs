@@ -147,6 +147,16 @@ public class UsenetStreamingClient : WrappingNntpClient
             maxConnections = 1;
         }
 
+        if (ShouldWarnCleartextCredentials(connectionDetails.UseSsl, connectionDetails.User))
+        {
+            var label = string.IsNullOrWhiteSpace(connectionDetails.Nickname)
+                ? connectionDetails.Host
+                : connectionDetails.Nickname;
+            Log.Warning(
+                "Provider '{Provider}' uses a cleartext connection (no TLS) with credentials; the password is sent unencrypted. Prefer port 563 with SSL.",
+                label);
+        }
+
         var connectionPool = CreateNewConnectionPool(
             maxConnections: maxConnections,
             connectionFactory: ct => CreateNewConnection(connectionDetails, ct),
@@ -195,6 +205,9 @@ public class UsenetStreamingClient : WrappingNntpClient
     // short enough that three stuck handshakes cannot pin the pool forever.
     // Settable for tests so timeout coverage does not wait a full 15s.
     internal static TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    internal static bool ShouldWarnCleartextCredentials(bool useSsl, string? user) =>
+        !useSsl && !string.IsNullOrEmpty(user);
 
     public static ValueTask<INntpClient> CreateNewConnection
     (
