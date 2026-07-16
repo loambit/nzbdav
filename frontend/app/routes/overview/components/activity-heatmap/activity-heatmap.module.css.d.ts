@@ -12,6 +12,7 @@ declare const styles: {
   readonly cell: string;
   readonly cellEmpty: string;
   readonly mode_day: string;
+  readonly mode_week: string;
   readonly mode_month: string;
   readonly mode_year: string;
   readonly axisRow: string;

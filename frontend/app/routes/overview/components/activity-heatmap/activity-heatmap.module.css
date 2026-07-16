@@ -107,6 +107,10 @@
     height: 32px;
 }
 
+.mode_week {
+    /* week mode uses default cell sizing */
+}
+
 .mode_month .cell,
 .mode_month .cellEmpty {
     aspect-ratio: auto;
