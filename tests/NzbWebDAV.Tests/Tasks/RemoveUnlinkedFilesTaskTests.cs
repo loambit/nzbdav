@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using NzbWebDAV.Config;
@@ -13,6 +14,38 @@ namespace NzbWebDAV.Tests.Tasks;
 [Collection(nameof(BaseTaskCollection))]
 public class RemoveUnlinkedFilesTaskTests
 {
+    [Fact]
+    public async Task ProgressHeartbeat_ReportsElapsedUntilCompleted()
+    {
+        var messages = new ConcurrentQueue<string>();
+        var heartbeatReported = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var heartbeat = new RemoveUnlinkedFilesTask.ProgressHeartbeat(message =>
+        {
+            messages.Enqueue(message);
+            if (message.Contains("Elapsed:", StringComparison.Ordinal))
+                heartbeatReported.TrySetResult(message);
+        }, TimeSpan.FromMilliseconds(10));
+
+        try
+        {
+            heartbeat.StartPhase("Scanning all linked files...\nFound 79976...");
+
+            var elapsedMessage = await heartbeatReported.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.StartsWith("Scanning all linked files...\nFound 79976...", elapsedMessage);
+            Assert.Contains("Elapsed:", elapsedMessage);
+
+            heartbeat.Complete("Done.");
+            heartbeat.UpdatePhase("Scanning all linked files...\nFound 79977...");
+
+            Assert.Equal("Done.", messages.Last());
+        }
+        finally
+        {
+            await heartbeat.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task RemoveEmptyDirectoriesAsync_RemovesNestedEmptyDirsAndTerminates()
     {
@@ -326,11 +359,13 @@ public class RemoveUnlinkedFilesTaskTests
             ]);
 
             var websocket = new WebsocketManager();
+            var messages = new ConcurrentQueue<string>();
             var task = new RemoveUnlinkedFilesTask(
                 config,
                 websocket,
                 isDryRun: true,
-                createContext: () => harness.CreateContext());
+                createContext: () => harness.CreateContext(),
+                progressObserver: messages.Enqueue);
 
             Assert.True(await task.Execute());
 
@@ -338,6 +373,13 @@ public class RemoveUnlinkedFilesTaskTests
             Assert.NotNull(progress);
             Assert.StartsWith("Dry Run - Done.", progress);
             Assert.Contains("Identified 1 unlinked files", progress);
+            AssertMessagesAppearInOrder(
+                messages,
+                "Scanning all linked files",
+                "Indexing 5 linked files",
+                "Searching for unlinked webdav items",
+                "Identifying unlinked files",
+                "Done. Identified 1 unlinked files");
         }
         finally
         {
@@ -412,6 +454,25 @@ public class RemoveUnlinkedFilesTaskTests
     private static DavItem NewDir(Guid id, DavItem parent, string name) =>
         DavItem.New(id, parent, name, null, DavItem.ItemType.Directory, DavItem.ItemSubType.Directory,
             null, null, null, null);
+
+    private static void AssertMessagesAppearInOrder(
+        IEnumerable<string> messages,
+        params string[] expectedFragments)
+    {
+        var allMessages = messages.ToList();
+        var searchFrom = 0;
+        foreach (var expected in expectedFragments)
+        {
+            var index = allMessages.FindIndex(
+                searchFrom,
+                message => message.Contains(expected, StringComparison.Ordinal));
+            Assert.True(
+                index >= 0,
+                $"Expected progress containing '{expected}' after index {searchFrom - 1}. " +
+                $"Messages: {string.Join(" | ", allMessages)}");
+            searchFrom = index + 1;
+        }
+    }
 
     private static async Task SeedRootsAsync(DavDatabaseContext ctx)
     {
