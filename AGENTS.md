@@ -159,6 +159,8 @@ dotnet ef database update   # or: ./publish/NzbWebDAV --db-migration
 
 Migration files go in `backend/Database/Migrations/`. `DavDatabaseContextFactory` exists for design-time tooling.
 
+**Any commit that adds or changes a database migration must be marked as a breaking change** (see [Breaking changes](#breaking-changes) below) so release-please performs a breaking version bump. Migrations auto-apply on startup; a breaking bump signals operators to back up `/config` before upgrading.
+
 ## Commit conventions (required)
 
 All commits **must** follow [Conventional Commits](https://www.conventionalcommits.org/) so [release-please](https://github.com/googleapis/release-please) can build version bumps and `CHANGELOG.md` entries on merge to `main`.
@@ -169,13 +171,36 @@ All commits **must** follow [Conventional Commits](https://www.conventionalcommi
 <type>(<scope>): <short imperative description>
 ```
 
+### Breaking changes
+
+**Always mark breaking changes so release-please bumps the version as breaking.** Use a `!` after the type/scope and/or a `BREAKING CHANGE:` footer.
+
+This is **required** when the commit:
+
+- Introduces a user-visible breaking change (API, config, behavior, or upgrade path), **or**
+- Adds or modifies an EF Core database migration under `backend/Database/Migrations/`
+
+Examples:
+
+```
+feat(db)!: add health-check history table migration
+fix(webdav)!: remove deprecated mount path /legacy
+
+feat(db)!: stage guided restore and swap databases during maintenance
+
+BREAKING CHANGE: existing installs must back up /config before upgrading;
+the migration rewrites the queue schema and cannot be rolled back.
+```
+
+Do not land migrations or other breaking work as plain `feat` / `fix` — those only produce minor/patch bumps and will not surface under Breaking Changes in the changelog.
+
 ### Types
 
 Prefer the most specific type so release-please places the entry in the right changelog section (see `.release-please-config.json`).
 
 | Type | Changelog section | When to use |
 |------|-------------------|-------------|
-| `feat!` / `BREAKING CHANGE` footer | Breaking Changes | User-visible breaking changes |
+| `feat!` / `fix!` / `BREAKING CHANGE` footer | Breaking Changes | Breaking changes **and** any commit that includes a database migration |
 | `feat` | Features | New user-visible behavior |
 | `fix` | Bug Fixes | Bug fixes, regressions, compatibility fixes |
 | `perf` | Performance Improvements | Performance-only improvements |
@@ -221,6 +246,7 @@ feat(queue): backup incoming nzbs when enabled
 fix(webdav): return 416 for range requests past content boundary
 fix(nntp): skip failing providers with circuit breaker
 feat(ui): add setting to schedule RemoveOrphanedFiles task
+feat(db)!: add orphaned-files index migration
 fix(deps): bump vite in the frontend vite group
 ci: run pre-release image builds on demand
 docs: expand commit type guidance for release-please sections
@@ -289,6 +315,7 @@ Docker image builds are shared via the reusable workflow. Branch and dependabot 
 ## Releases
 
 - Merging to `main` triggers **release-please** (`.github/workflows/release.yml`) which maintains `CHANGELOG.md` + `version.txt` and creates GitHub releases.
+- Breaking commits (`feat!` / `fix!` / `BREAKING CHANGE` footer) → breaking version bump (and Breaking Changes changelog section). **Database migrations must always use this form.**
 - `feat` → minor bump; `fix` → patch bump (pre-1.0 rules in `.release-please-config.json`). Other conventional types (`perf`, `docs`, `test`, `refactor`, `style`, `revert`, `build`) appear in changelog sections but do not bump the version by themselves. `chore` and `ci` commits are omitted from release notes.
 - When release-please creates a release on merge to `main`, the same workflow run builds and pushes Docker images to `ghcr.io` (`latest`, `dev`, exact `vMAJOR.MINOR.PATCH`, and rolling `vMAJOR` / `vMAJOR.MINOR` tags) and moves the git `dev` tag to that release commit.
 - To republish images for an existing release (e.g. after fixing CI), run **Release** workflow manually with the `version` input (e.g. `0.6.5`); this also moves the git `dev` tag to that version.
@@ -311,7 +338,7 @@ Docker image builds are shared via the reusable workflow. Branch and dependabot 
 - **Proxy paths:** new WebDAV mount points must be added to the proxy allowlists in `frontend/server/app.ts` and compression skip list in `frontend/server.ts`.
 - **Editing CHANGELOG.md:** it is generated — commit messages are the source of truth.
 - **Package release ordering:** do not bump UsenetSharp merely because a release/tag exists; confirm the package publish job completed.
-- **Breaking upgrades:** irreversible schema changes ship as ordinary EF migrations that auto-apply on startup and surface through the migration-progress splash; there is no `UPGRADE` env-var interlock. Advise a `/config` backup before upgrading across such a migration.
+- **Breaking upgrades:** irreversible schema changes ship as ordinary EF migrations that auto-apply on startup and surface through the migration-progress splash; there is no `UPGRADE` env-var interlock. Advise a `/config` backup before upgrading across such a migration. Commits that add migrations **must** use a breaking conventional-commit marker (`!` or `BREAKING CHANGE`) so release-please bumps as breaking.
 - **Test fixtures:** prefer deterministic generated data and `FakeNntpClient`; do not require live Usenet providers in the automated suite.
 - **Streaming changes:** run the focused backend tests and retain manual range, rclone scrubbing, and encrypted-archive playback checks for behavior not covered by automation.
 
