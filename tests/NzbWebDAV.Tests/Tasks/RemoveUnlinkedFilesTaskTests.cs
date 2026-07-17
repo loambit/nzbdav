@@ -23,7 +23,7 @@ public class RemoveUnlinkedFilesTaskTests
         var heartbeat = new RemoveUnlinkedFilesTask.ProgressHeartbeat(message =>
         {
             messages.Enqueue(message);
-            if (message.Contains("Elapsed:", StringComparison.Ordinal))
+            if (messages.Count > 1 && message.Contains("Elapsed:", StringComparison.Ordinal))
                 heartbeatReported.TrySetResult(message);
         }, TimeSpan.FromMilliseconds(10));
 
@@ -31,14 +31,22 @@ public class RemoveUnlinkedFilesTaskTests
         {
             heartbeat.StartPhase("Scanning all linked files...\nFound 79976...");
 
+            Assert.True(messages.TryPeek(out var startMessage));
+            Assert.StartsWith("Scanning all linked files...\nFound 79976...", startMessage);
+            Assert.Contains("Elapsed:", startMessage);
+
+            heartbeat.UpdatePhase("Scanning all linked files...\nFound 79977...");
+            Assert.Contains("Elapsed:", messages.Last());
+            Assert.StartsWith("Scanning all linked files...\nFound 79977...", messages.Last());
+
             var elapsedMessage = await heartbeatReported.Task.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.StartsWith("Scanning all linked files...\nFound 79976...", elapsedMessage);
             Assert.Contains("Elapsed:", elapsedMessage);
 
             heartbeat.Complete("Done.");
-            heartbeat.UpdatePhase("Scanning all linked files...\nFound 79977...");
+            heartbeat.UpdatePhase("Scanning all linked files...\nFound 79978...");
 
             Assert.Equal("Done.", messages.Last());
+            Assert.DoesNotContain("Elapsed:", messages.Last());
         }
         finally
         {

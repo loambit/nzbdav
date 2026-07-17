@@ -577,7 +577,7 @@ public class RemoveUnlinkedFilesTask : BaseTask
         private readonly TimeSpan _interval;
         private readonly Timer _timer;
         private string? _message;
-        private long _phaseStartedAt;
+        private long _runStartedAt;
         private bool _completed;
         private bool _disposed;
 
@@ -598,9 +598,10 @@ public class RemoveUnlinkedFilesTask : BaseTask
             lock (_sync)
             {
                 if (_disposed || _completed) return;
+                if (_runStartedAt == 0)
+                    _runStartedAt = Stopwatch.GetTimestamp();
                 _message = message;
-                _phaseStartedAt = Stopwatch.GetTimestamp();
-                _report(message);
+                ReportWithElapsed();
                 _timer.Change(_interval, _interval);
             }
         }
@@ -611,7 +612,7 @@ public class RemoveUnlinkedFilesTask : BaseTask
             {
                 if (_disposed || _completed) return;
                 _message = message;
-                _report(message);
+                ReportWithElapsed();
             }
         }
 
@@ -632,9 +633,17 @@ public class RemoveUnlinkedFilesTask : BaseTask
             lock (_sync)
             {
                 if (_disposed || _message is null) return;
-                var elapsed = Stopwatch.GetElapsedTime(_phaseStartedAt);
-                _report($"{_message}\nElapsed: {FormatElapsed(elapsed)}");
+                ReportWithElapsed();
             }
+        }
+
+        private void ReportWithElapsed()
+        {
+            if (_message is null) return;
+            if (_runStartedAt == 0)
+                _runStartedAt = Stopwatch.GetTimestamp();
+            var elapsed = Stopwatch.GetElapsedTime(_runStartedAt);
+            _report($"{_message}\nElapsed: {FormatElapsed(elapsed)}");
         }
 
         private static string FormatElapsed(TimeSpan elapsed) =>
