@@ -4,62 +4,62 @@
   "changelog-sections": [
     {
       "type": "breaking",
-      "section": "💥 Breaking Changes",
+      "section": "Breaking Changes",
       "hidden": false
     },
     {
       "type": "feat",
-      "section": "✨ Features",
+      "section": "Features",
       "hidden": false
     },
     {
       "type": "fix",
-      "section": "🐛 Bug Fixes",
+      "section": "Bug Fixes",
       "hidden": false
     },
     {
       "type": "perf",
-      "section": "⚡ Performance Improvements",
+      "section": "Performance Improvements",
       "hidden": false
     },
     {
       "type": "chore",
-      "section": "🤡 Other Changes",
+      "section": "Chores",
       "hidden": false
     },
     {
       "type": "docs",
-      "section": "📖 Documentation",
+      "section": "Documentation",
       "hidden": false
     },
     {
       "type": "ci",
-      "section": "🚀 CI/CD Pipeline",
+      "section": "CI/CD Pipeline",
       "hidden": false
     },
     {
       "type": "tests",
-      "section": "🔧 Testing",
+      "section": "Testing",
       "hidden": false
     },
     {
       "type": "refactor",
-      "section": "🛠️ Refactors",
+      "section": "Refactors",
       "hidden": false
     },
     {
-      "type": "style",
-      "section": "🎨 Styles",
+      "type": "ux",
+      "section": "UX",
       "hidden": false
     },
     {
       "type": "revert",
-      "section": "⏪ Reverts",
+      "section": "Reverts",
       "hidden": false
     },
     {
       "type": "build",
-      "section": "🛠️ Build System",
+      "section": "Build System",
       "hidden": false
     }
   ],

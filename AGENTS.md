@@ -184,7 +184,7 @@ Prefer the most specific type so release-please places the entry in the right ch
 | `ci` | CI/CD Pipeline | GitHub Actions / CI only |
 | `test` / `tests` | Testing | Tests only (no product behavior change) |
 | `refactor` | Refactors | Internal restructuring without behavior change |
-| `style` | Styles | Formatting / UI chrome with no behavior change (prefer `feat(ui)` / `fix(ui)` when behavior changes) |
+| `ux` | UX | Formatting / UI chrome with no behavior change (prefer `feat(ui)` / `fix(ui)` when behavior changes) |
 | `revert` | Reverts | Reverts of prior commits |
 | `build` | Build System | Dockerfile, build scripts, packaging (not CI workflows) |
 
