@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System.Diagnostics;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NzbWebDAV.Config;
 using NzbWebDAV.Database;
@@ -11,50 +12,84 @@ using Serilog;
 
 namespace NzbWebDAV.Tasks;
 
-public class RemoveUnlinkedFilesTask(
-    ConfigManager configManager,
-    WebsocketManager websocketManager,
-    bool isDryRun,
-    Func<DavDatabaseContext>? createContext = null
-) : BaseTask
+public class RemoveUnlinkedFilesTask : BaseTask
 {
+    private static readonly TimeSpan DefaultProgressHeartbeatInterval = TimeSpan.FromSeconds(2);
     private static List<string> _allRemovedPaths = [];
+    private readonly ConfigManager _configManager;
+    private readonly WebsocketManager _websocketManager;
+    private readonly bool _isDryRun;
+    private readonly Func<DavDatabaseContext>? _createContext;
+    private readonly TimeSpan _progressHeartbeatInterval;
+    private readonly Action<string>? _progressObserver;
+    private ProgressHeartbeat? _progressHeartbeat;
 
     internal record UnlinkedItemInfo(string Id, int Type, string Path);
 
-    private DavDatabaseContext CreateContext() => createContext?.Invoke() ?? new DavDatabaseContext();
+    public RemoveUnlinkedFilesTask(
+        ConfigManager configManager,
+        WebsocketManager websocketManager,
+        bool isDryRun)
+        : this(configManager, websocketManager, isDryRun, null)
+    {
+    }
+
+    internal RemoveUnlinkedFilesTask(
+        ConfigManager configManager,
+        WebsocketManager websocketManager,
+        bool isDryRun,
+        Func<DavDatabaseContext>? createContext,
+        TimeSpan? progressHeartbeatInterval = null,
+        Action<string>? progressObserver = null)
+    {
+        _configManager = configManager;
+        _websocketManager = websocketManager;
+        _isDryRun = isDryRun;
+        _createContext = createContext;
+        _progressHeartbeatInterval = progressHeartbeatInterval ?? DefaultProgressHeartbeatInterval;
+        _progressObserver = progressObserver;
+    }
+
+    private DavDatabaseContext CreateContext() => _createContext?.Invoke() ?? new DavDatabaseContext();
 
     protected override async Task ExecuteInternal()
     {
+        await using var progressHeartbeat = new ProgressHeartbeat(Report, _progressHeartbeatInterval);
+        _progressHeartbeat = progressHeartbeat;
         try
         {
             await RemoveUnlinkedFiles().ConfigureAwait(false);
         }
         catch (Exception e)
         {
-            Report($"Failed: {e.Message}");
+            Complete($"Failed: {e.Message}");
             Log.Error(e, "Failed to remove unlinked files.");
+        }
+        finally
+        {
+            _progressHeartbeat = null;
         }
     }
 
     private async Task RemoveUnlinkedFiles()
     {
         // get linked file paths
-        Report("Scanning all linked files...");
+        StartPhase("Scanning all linked files...");
         var startTime = DateTime.Now;
         var linkedIdCount = await WriteLinkedIdsToTable().ConfigureAwait(false);
         if (linkedIdCount < 5)
         {
             _allRemovedPaths.Clear();
-            Report($"Aborted: " +
-                   $"There are less than five linked files found in your library. " +
-                   $"Cancelling operation to prevent accidental bulk deletion.");
+            Complete(
+                "Aborted: There are less than five linked files found in your library. " +
+                "Cancelling operation to prevent accidental bulk deletion.");
             return;
         }
 
-        Report("Searching for unlinked webdav items...");
+        StartPhase("Searching for unlinked webdav items...");
         var unlinkedItems = await CountUnlinkedItems(startTime).ConfigureAwait(false);
-        Report($"Found {unlinkedItems} webdav items to remove.");
+        UpdatePhase(
+            $"Searching for unlinked webdav items...\nFound {unlinkedItems} webdav items to remove.");
 
         // The `linkedIdCount < 5` check above only catches a COMPLETELY empty scan. A library
         // dir that is partially mounted, or pointed at the wrong path, can still expose a
@@ -72,27 +107,28 @@ public class RemoveUnlinkedFilesTask(
                 $"That usually means the library directory is missing, unmounted, or misconfigured " +
                 $"rather than that the items are orphaned.";
 
-            if (!isDryRun)
+            if (!_isDryRun)
             {
                 _allRemovedPaths.Clear();
-                Report($"Aborted: {detail} Cancelling to prevent accidental bulk deletion. " +
-                       $"Run a dry-run to inspect if this is genuinely expected.");
+                Complete($"Aborted: {detail} Cancelling to prevent accidental bulk deletion. " +
+                         "Run a dry-run to inspect if this is genuinely expected.");
                 return;
             }
 
-            Report($"Warning: {detail} A non-dry-run would abort.");
+            UpdatePhase($"Warning: {detail} A non-dry-run would abort.");
         }
 
-        if (isDryRun)
+        if (_isDryRun)
         {
+            StartPhase("Identifying unlinked files...");
             await DryRunIdentifyUnlinkedFiles(startTime).ConfigureAwait(false);
-            Report($"Done. Identified {_allRemovedPaths.Count} unlinked files.");
+            Complete($"Done. Identified {_allRemovedPaths.Count} unlinked files.");
         }
         else
         {
             await RemoveUnlinkedItems(startTime, unlinkedItems).ConfigureAwait(false);
             await RemoveEmptyDirectories(startTime).ConfigureAwait(false);
-            Report($"Done. Removed {_allRemovedPaths.Count} unlinked files.");
+            Complete($"Done. Removed {_allRemovedPaths.Count} unlinked files.");
         }
     }
 
@@ -119,7 +155,7 @@ public class RemoveUnlinkedFilesTask(
         // Remove duplicates and add primary key index.
         // COLLATE NOCASE on the column (not predicates) so the PK remains seekable while
         // matching uppercase TMP_LINKED_FILES ids to lowercase migration-seeded DavItems.Id.
-        Report($"Indexing {scannedCount} linked files...");
+        StartPhase($"Indexing {scannedCount} linked files...");
         await dbContext.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE TMP_LINKED_FILES_UNIQUE (Id TEXT NOT NULL COLLATE NOCASE PRIMARY KEY);
@@ -228,20 +264,24 @@ public class RemoveUnlinkedFilesTask(
 
     private IEnumerable<Guid> GetLinkedIds()
     {
-        var debounce = DebounceUtil.CreateDebounce(TimeSpan.FromMilliseconds(500));
         var linkedIds = OrganizedLinksUtil
-            .GetLibraryDavItemLinks(configManager)
+            .GetLibraryDavItemLinks(_configManager)
             .Select(x => x.DavItemId);
 
         var count = 0;
+        var lastProgressAt = Stopwatch.GetTimestamp();
         foreach (var linkedId in linkedIds)
         {
             count++;
-            debounce(() => Report($"Scanning all linked files...\nFound {count}..."));
+            if (Stopwatch.GetElapsedTime(lastProgressAt) >= TimeSpan.FromMilliseconds(500))
+            {
+                UpdatePhase($"Scanning all linked files...\nFound {count}...");
+                lastProgressAt = Stopwatch.GetTimestamp();
+            }
             yield return linkedId;
         }
 
-        Report($"Scanning all linked files...\nFound {count}...");
+        UpdatePhase($"Scanning all linked files...\nFound {count}...");
     }
 
     /// <summary>
@@ -294,7 +334,7 @@ public class RemoveUnlinkedFilesTask(
 
     private async Task RemoveUnlinkedItems(DateTime createdBefore, int totalCount)
     {
-        Report("Removing unlinked items...");
+        StartPhase("Removing unlinked items...");
         _allRemovedPaths.Clear();
         await using var dbContext = CreateContext();
         var removed = 0;
@@ -357,20 +397,20 @@ public class RemoveUnlinkedFilesTask(
             _allRemovedPaths.AddRange(itemsToDelete.Select(x => x.Path));
             removed += deleted;
 
-            Report($"Removing unlinked items...\nRemoved {removed}/{totalCount}...");
+            UpdatePhase($"Removing unlinked items...\nRemoved {removed}/{totalCount}...");
         }
 
-        Report($"Removing unlinked items...\nRemoved {removed} of {removed}...");
+        UpdatePhase($"Removing unlinked items...\nRemoved {removed} of {removed}...");
     }
 
     private async Task RemoveEmptyDirectories(DateTime createdBefore)
     {
-        Report($"Removing empty directories...");
+        StartPhase("Removing empty directories...");
         await using var dbContext = CreateContext();
         await RemoveEmptyDirectoriesAsync(
             dbContext,
             createdBefore,
-            removedSoFar => Report($"Removing empty directories...\nRemoved {removedSoFar}..."),
+            removedSoFar => UpdatePhase($"Removing empty directories...\nRemoved {removedSoFar}..."),
             dirs => DavDatabaseContext.RcloneVfsForget(dirs),
             CancellationToken).ConfigureAwait(false);
     }
@@ -506,14 +546,114 @@ public class RemoveUnlinkedFilesTask(
 
             _allRemovedPaths.AddRange(batch.Select(x => x.Path));
             lastId = batch[^1].Id;
-            Report($"Identifying unlinked files...\nFound {_allRemovedPaths.Count}...");
+            UpdatePhase($"Identifying unlinked files...\nFound {_allRemovedPaths.Count}...");
         }
+    }
+
+    private void StartPhase(string message) => _progressHeartbeat?.StartPhase(message);
+
+    private void UpdatePhase(string message) => _progressHeartbeat?.UpdatePhase(message);
+
+    private void Complete(string message)
+    {
+        if (_progressHeartbeat is not null)
+            _progressHeartbeat.Complete(message);
+        else
+            Report(message);
     }
 
     private void Report(string message)
     {
-        var dryRun = isDryRun ? "Dry Run - " : string.Empty;
-        _ = websocketManager.SendMessage(WebsocketTopic.CleanupTaskProgress, $"{dryRun}{message}");
+        var dryRun = _isDryRun ? "Dry Run - " : string.Empty;
+        var progress = $"{dryRun}{message}";
+        _progressObserver?.Invoke(progress);
+        _ = _websocketManager.SendMessage(WebsocketTopic.CleanupTaskProgress, progress);
+    }
+
+    internal sealed class ProgressHeartbeat : IAsyncDisposable
+    {
+        private readonly object _sync = new();
+        private readonly Action<string> _report;
+        private readonly TimeSpan _interval;
+        private readonly Timer _timer;
+        private string? _message;
+        private long _phaseStartedAt;
+        private bool _completed;
+        private bool _disposed;
+
+        public ProgressHeartbeat(Action<string> report, TimeSpan interval)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+            _report = report;
+            _interval = interval;
+            _timer = new Timer(
+                static state => ((ProgressHeartbeat)state!).ReportHeartbeat(),
+                this,
+                Timeout.InfiniteTimeSpan,
+                Timeout.InfiniteTimeSpan);
+        }
+
+        public void StartPhase(string message)
+        {
+            lock (_sync)
+            {
+                if (_disposed || _completed) return;
+                _message = message;
+                _phaseStartedAt = Stopwatch.GetTimestamp();
+                _report(message);
+                _timer.Change(_interval, _interval);
+            }
+        }
+
+        public void UpdatePhase(string message)
+        {
+            lock (_sync)
+            {
+                if (_disposed || _completed) return;
+                _message = message;
+                _report(message);
+            }
+        }
+
+        public void Complete(string message)
+        {
+            lock (_sync)
+            {
+                if (_disposed || _completed) return;
+                _completed = true;
+                _message = null;
+                _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _report(message);
+            }
+        }
+
+        private void ReportHeartbeat()
+        {
+            lock (_sync)
+            {
+                if (_disposed || _message is null) return;
+                var elapsed = Stopwatch.GetElapsedTime(_phaseStartedAt);
+                _report($"{_message}\nElapsed: {FormatElapsed(elapsed)}");
+            }
+        }
+
+        private static string FormatElapsed(TimeSpan elapsed) =>
+            elapsed.TotalMinutes >= 1
+                ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s"
+                : $"{Math.Max(1, (int)elapsed.TotalSeconds)}s";
+
+        public async ValueTask DisposeAsync()
+        {
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _message = null;
+                _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            }
+
+            await _timer.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     public static string GetAuditReport()
