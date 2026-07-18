@@ -490,6 +490,21 @@ Go to the **Save & Install** tab, click **Save**, and then install the addon to 
 
 Search profiles expose selected NzbDav indexers through token-scoped endpoints. Create and manage profiles under `Settings` → `Profiles`, and treat each generated token as a secret.
 
+### Search link lifetime
+
+Play links embedded in search results are persisted in NzbDav's database, so they
+remain valid across container restarts. Their lifetime defaults to 168 hours
+(7 days) and can be changed under `Settings` → `Watchdog` → **Search link
+lifetime (hours)**, with a supported range of 1–720 hours.
+
+Set the lifetime at least as high as the result-cache lifetime of every search
+client that consumes these links. AIOStreams defaults to 7 days. Docker
+operators can set the fallback with `RESOLUTION_CACHE_TTL_HOURS`; a saved
+`play.resolution-cache-ttl-hours` setting takes precedence.
+
+Links created before upgrading to the persistent cache were never stored and
+must be refreshed by searching again.
+
 ### 1. Newznab adapter for Prowlarr, Sonarr, or Radarr
 
 1. Add a custom Newznab indexer.
@@ -621,7 +636,7 @@ Mounted content under `/content` can vanish for several independent reasons. Rep
 
 | Cause | Trigger | What happens |
 | --- | --- | --- |
-| History delete with delete-files | SAB API / UI history delete with `del_files=1` | Mounted DavItems for that history row are deleted (download dir immediately; children via background cleanup). |
+| History delete with delete-files | Admin UI history delete, or the NzbDav-specific `del_completed_files=1` API parameter | Mounted DavItems for that completed history row are deleted (download dir immediately; children via background cleanup). SAB's `del_files=1` applies only to failed jobs, which never mount content in NzbDav. |
 | Cascading child sweep | Any deleted directory | Children are deleted in the background (`DavCleanupService`). |
 | Health repair | `repair.enable` + missing Usenet articles | Orphaned/blocklisted items are deleted; linked items may be removed after *Arr remove-and-search. Unreachable *Arr instances defer deletion (fail safe). |
 | Remove Orphaned Files | Scheduled or manual task | Deletes Usenet files with **no library symlink/STRM** (and empty dirs). Uses library links, **not** SAB history. Aborts if fewer than 5 linked files are found or if more than 90% of deletable items look unlinked. |
