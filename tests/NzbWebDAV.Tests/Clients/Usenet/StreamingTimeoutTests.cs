@@ -6,6 +6,7 @@ using NzbWebDAV.Clients.Usenet.Contexts;
 using NzbWebDAV.Clients.Usenet.Models;
 using NzbWebDAV.Extensions;
 using NzbWebDAV.Models;
+using NzbWebDAV.Tests.Fakes;
 using UsenetSharp.Models;
 using UsenetSharp.Streams;
 
@@ -160,6 +161,76 @@ public class StreamingTimeoutTests
 
         Assert.True(breaker.IsTripped);
         Assert.True(breaker.TrippedUntilMs > 0);
+    }
+
+    [Fact]
+    public async Task RunWithConnection_StatCommandFailure_DoesNotTripBreaker()
+    {
+        var breaker = new ProviderCircuitBreaker("stat-failure");
+        using var pool = new ConnectionPool<INntpClient>(
+            maxConnections: 2,
+            _ => ValueTask.FromResult<INntpClient>(new HangingNntpClient()));
+
+        using var client = new MultiConnectionNntpClient(
+            pool, ProviderType.Pooled, breaker, "stat-failure");
+
+        // HangingNntpClient throws from StatAsync. The loop runs well past the
+        // trip threshold that body commands are held to.
+        for (var i = 0; i < 5; i++)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                client.StatAsync($"seg-{i}", CancellationToken.None));
+        }
+
+        Assert.False(breaker.IsTripped);
+        Assert.Equal(0, breaker.TrippedUntilMs);
+    }
+
+    [Fact]
+    public async Task RunWithConnection_StatSuccess_ClosesLatchedBreaker()
+    {
+        var breaker = new ProviderCircuitBreaker("stat-success-latched");
+        using var pool = new ConnectionPool<INntpClient>(
+            maxConnections: 2,
+            _ => ValueTask.FromResult<INntpClient>(
+                new FakeNntpClient(new Dictionary<string, byte[]> { ["seg"] = [1, 2, 3] })));
+
+        using var client = new MultiConnectionNntpClient(
+            pool, ProviderType.Pooled, breaker, "stat-success-latched");
+
+        breaker.RecordFailure();
+        breaker.RecordFailure();
+        breaker.RecordFailure();
+        Assert.True(breaker.IsLatched);
+
+        await client.StatAsync("seg", CancellationToken.None);
+
+        Assert.False(breaker.IsLatched);
+        Assert.Equal(0, breaker.TrippedUntilMs);
+    }
+
+    [Fact]
+    public async Task RunWithConnection_StatSuccess_DoesNotClearFailureStreakWhileClosed()
+    {
+        var breaker = new ProviderCircuitBreaker("stat-success-closed");
+        using var pool = new ConnectionPool<INntpClient>(
+            maxConnections: 2,
+            _ => ValueTask.FromResult<INntpClient>(
+                new FakeNntpClient(new Dictionary<string, byte[]> { ["seg"] = [1, 2, 3] })));
+
+        using var client = new MultiConnectionNntpClient(
+            pool, ProviderType.Pooled, breaker, "stat-success-closed");
+
+        // Two failures leave the breaker closed and one short of tripping.
+        breaker.RecordFailure();
+        breaker.RecordFailure();
+        Assert.False(breaker.IsLatched);
+
+        await client.StatAsync("seg", CancellationToken.None);
+
+        // The streak has to survive the stat, so the next failure still trips.
+        breaker.RecordFailure();
+        Assert.True(breaker.IsTripped);
     }
 
     [Fact]

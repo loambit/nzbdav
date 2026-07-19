@@ -53,6 +53,10 @@ public class MultiConnectionNntpClient(
     private static readonly ConcurrentDictionary<string, int> TimeoutCounts = new();
     private static long _lastTimeoutFlushTicks = DateTime.UtcNow.Ticks;
 
+    // Commands that transfer an article body. Only these feed the circuit breaker, so the
+    // failure and success paths share one definition rather than each listing commands.
+    private static bool IsBodyCommand(string name) => name is "BODY" or "ARTICLE";
+
     private static void IncrementTimeoutCount(string provider)
     {
         TimeoutCounts.AddOrUpdate(provider, 1, (_, existing) => existing + 1);
@@ -412,7 +416,7 @@ public class MultiConnectionNntpClient(
                 LogException(() => onConnectionReadyAgain?.Invoke(ArticleBodyResult.NotRetrieved));
                 throw;
             }
-            catch (Exception e) when (name is "BODY" or "ARTICLE" && e.TryGetCausingException(out TimeoutException? _))
+            catch (Exception e) when (IsBodyCommand(name) && e.TryGetCausingException(out TimeoutException? _))
             {
                 // Read-timeout on BODY/ARTICLE means the provider stopped responding
                 // mid-command. A fresh socket to the same provider is unlikely to fare
@@ -432,7 +436,9 @@ public class MultiConnectionNntpClient(
             {
                 deferredCallback.Discard();
                 var wasReused = connectionLock?.WasReused ?? false;
-                if (!wasReused)
+                // stat, head, and date do not feed the circuit breaker. The success path
+                // already skips them so a failure recorded here would never be reset.
+                if (!wasReused && IsBodyCommand(name))
                     circuitBreaker.RecordFailure($"cmd-setup-{name}-{e.GetType().Name}");
                 LogException(() => connectionLock?.Replace());
                 LogException(() => connectionLock?.Dispose());
@@ -465,8 +471,13 @@ public class MultiConnectionNntpClient(
             // stat, head, and date — do not feed the circuit breaker.
             // STAT/HEAD/DATE successes were resetting BODY failure streaks and
             // preventing trips under mixed traffic (STAT-ok/BODY-fail providers).
-            if (name is "STAT" or "HEAD" or "DATE")
+            if (!IsBodyCommand(name))
             {
+                // Once latched the breaker is no longer tracking a streak, it is waiting
+                // for proof the provider answers at all. A provider that sees little body
+                // traffic would otherwise stay latched with nothing able to close it.
+                if (circuitBreaker.IsLatched)
+                    circuitBreaker.RecordSuccess();
                 deferredCallback.Discard();
                 LogException(() => connectionLock?.Dispose());
             }

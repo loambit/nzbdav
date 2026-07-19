@@ -74,6 +74,13 @@ public class ProviderCircuitBreaker
         }
     }
 
+    /// <summary>
+    /// True once a trip has latched, whether still cooling down or waiting on a probe.
+    /// Unlike <see cref="IsTripped"/> this claims no probe slot, so callers can read it
+    /// without altering state.
+    /// </summary>
+    public bool IsLatched => Volatile.Read(ref _trippedUntilMs) != 0;
+
     /// <summary>TickCount64 deadline while latched open; 0 when not tripped. For tests.</summary>
     internal long TrippedUntilMs => Volatile.Read(ref _trippedUntilMs);
 
