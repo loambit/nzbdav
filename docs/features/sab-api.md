@@ -20,7 +20,7 @@ Queue and history filters accept both `cat` and `category`. The default category
 - **Ignore SAB history limit** can ignore a client's `limit`; NzbDAV still enforces a server-side maximum page size.
 - Authentication failures use HTTP error status codes instead of always returning HTTP 200 with an error body.
 
-## `addurl` and private / LAN hosts
+## `addurl` and private / LAN hosts [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since }
 
 `mode=addurl` fetches the NZB from the URL the download client supplies. Before each hop (including redirects), NzbDAV rejects destinations that resolve to a non-public IP — an SSRF guard that also blocks Docker DNS / RFC1918 indexers unless allowlisted.
 

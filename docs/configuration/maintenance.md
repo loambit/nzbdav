@@ -22,6 +22,6 @@ Database housekeeping, scheduled orphan cleanup, and one-off tools.
 | Recreate STRM Files | Refresh sidecars | Needs STRM strategy + completed dir + base URL |
 | Migrate blobs to blobstore | Background optimization | Usually automatic |
 | Reset Health-Check Statistics | Clear HC history | Cannot undo |
-| Reset Overview Statistics | Clear overview metrics | Cannot undo |
+| Reset Overview Statistics [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since } | Clear overview metrics | Cannot undo |
 
 [Retention](../operations/retention-cleanup.md) · [Deletion audit](../operations/deletion-audit.md)

@@ -58,7 +58,7 @@ Long one-time maintenance does not mark the Compose healthcheck unhealthy — it
     - Allow HTTP Upgrade on **same-origin** `/ws` (Overview/Queue live updates).
     - Set `SECURE_COOKIES=true` when the UI is HTTPS-only.
     - Set **Base URL** in Settings (or `TRUST_PROXY=1` so forwarded headers rewrite correctly) for STRM/adapter absolute URLs.
-    - For `addurl` to Docker-internal indexers, configure [Trusted local hosts](../configuration/sabnzbd.md) or `TRUSTED_INTERNAL_HOSTS`.
+    - For `addurl` to Docker-internal indexers, configure [Trusted local hosts](../configuration/sabnzbd.md) or `TRUSTED_INTERNAL_HOSTS` [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since }.
 
 ## Optional environment
 
@@ -66,7 +66,7 @@ Long one-time maintenance does not mark the Compose healthcheck unhealthy — it
 |----------|---------|
 | `TRUST_PROXY=1` | Honor proxy `X-Forwarded-*` when rewriting scheme/host |
 | `TRUSTED_PROXY_CIDRS` | Widen backend proxy trust (split-container) |
-| `TRUSTED_INTERNAL_HOSTS` | Allowlist for private `addurl` targets |
+| `TRUSTED_INTERNAL_HOSTS` [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since } | Allowlist for private `addurl` targets |
 | `SESSION_KEY` | Stable session secret (else persisted under `/config`) |
 | `THREADPOOL_MIN_THREADS` / `THREADPOOL_MAX_THREADS` | Memory-constrained hosts |
 

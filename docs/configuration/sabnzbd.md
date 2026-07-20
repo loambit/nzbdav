@@ -14,7 +14,7 @@ SABnzbd-compatible download client API used by Radarr/Sonarr. See also [API comp
 | Ignored Files | `api.download-file-blocklist` | `*.nfo, *.par2, …` | Glob blocklist for mounts |
 | Behavior for Duplicate NZBs | `api.duplicate-nzb-behavior` | `increment` | increment / mark-failed |
 | User Agent | `api.user-agent` | env/default | `addurl` NZB fetch |
-| Trusted local hosts | `api.addurl-trusted-hosts` | env `TRUSTED_INTERNAL_HOSTS` | SSRF allowlist for private addurl |
+| Trusted local hosts [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since } | `api.addurl-trusted-hosts` | env `TRUSTED_INTERNAL_HOSTS` | SSRF allowlist for private addurl |
 | Fail downloads without video | `api.ensure-importable-video` | on | Reject non-video NZBs |
 | Fail when non-video missing articles | inverse of `api.skip-non-video-on-missing-articles` | skip non-video by default | |
 | Article health check categories | `api.ensure-article-existence-categories` | empty (off) | Per-category; may be slow |
