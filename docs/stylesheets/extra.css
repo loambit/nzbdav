@@ -33,14 +33,21 @@
 }
 
 .md-typeset .nzbdav-hero img {
-  max-width: min(100%, 640px);
-  max-height: 360px;
+  max-width: min(100%, 760px);
+  max-height: 480px;
   width: auto;
   height: auto;
   object-fit: contain;
   margin: 0 auto 1.25rem;
   border-radius: 0.5rem;
   box-shadow: 0 12px 40px color-mix(in srgb, #000 35%, transparent);
+}
+
+/* Header / drawer brand mark */
+.md-header__button.md-logo img,
+.md-nav__button.md-logo img {
+  height: 1.8rem;
+  width: auto;
 }
 
 .md-typeset .nzbdav-hero h1 {
