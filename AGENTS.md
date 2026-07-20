@@ -285,7 +285,11 @@ Use **GitHub Issue Types** for kind — not kind labels:
 
 - Do **not** use (or recreate) `bug` / `enhancement` labels — they were removed; Issue Type is the source of truth.
 - Do **not** put `[Bug]:` / `[Feature]:` in issue titles; the type field already conveys that.
-- Triage / meta labels are fine: `priority:P*`, `effort:*`, `performance`, `cataloged`, `more-info-required`, and source tags (`upstream-audit`, `elfhosted`, etc.).
+- Use Issue custom fields for triage severity and complexity — **not** labels:
+  - **Priority**: `Urgent` / `High` / `Medium` / `Low` (former `priority:P0`–`P3`)
+  - **Effort**: `High` / `Medium` / `Low` (former `effort:L` / `M` / `S`)
+- Do **not** recreate `priority:*` or `effort:*` labels.
+- Other triage / meta labels are fine: `performance`, `cataloged`, `more-info-required`, and source tags (`upstream-audit`, `elfhosted`, etc.).
 
 Bug and feature issue templates set Issue Type only (no kind labels, no title prefix).
 
