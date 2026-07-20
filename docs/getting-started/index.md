@@ -12,6 +12,14 @@ Choose a path based on where you are:
 
     [:octicons-arrow-right-24: Docker](docker.md)
 
+-   :material-swap-horizontal:{ .lg .middle } __Migrate from another build__
+
+    ---
+
+    Official path from nzbdav-dev `v0.6.4`, plus community forks (Pukabyte, NzbDavEx).
+
+    [:octicons-arrow-right-24: Migration](migration.md)
+
 -   :material-account-cog:{ .lg .middle } __First run__
 
     ---

@@ -31,6 +31,8 @@ docker compose up -d
 
 Database migrations apply automatically on startup. **Back up `/config` before upgrading across versions that include schema migrations** (breaking releases call this out in the changelog).
 
+Coming from nzbdav-dev `v0.6.4` or a community fork? See [Migration paths](../getting-started/migration.md).
+
 Tags: `latest`, version tags, and `dev` (pre-release) — see [GitHub Releases](https://github.com/nzbdav/nzbdav/releases) and [Changelog](../community/changelog.md).
 
 ## Watchtower / Arr updates

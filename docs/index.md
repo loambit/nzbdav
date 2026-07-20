@@ -133,6 +133,7 @@ Then open `http://localhost:3000`, create your admin account, and configure a Us
     Port `3000` is plain HTTP. Put NzbDAV behind HTTPS for remote access. WebDAV uses Basic auth, so TLS matters. Prefer binding `127.0.0.1:3000:3000` when a reverse proxy runs on the host.
 
 [Full Docker guide](getting-started/docker.md){ .md-button .md-button--primary }
+[Migrate from another build](getting-started/migration.md){ .md-button }
 [First-run checklist](getting-started/first-run.md){ .md-button }
 
 ## Documentation

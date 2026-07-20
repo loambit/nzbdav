@@ -171,6 +171,7 @@ The [about page](https://nzbdav.com/community/about/) covers project heritage an
 Start with the [getting started guide](https://nzbdav.com/getting-started/) for a full production deployment:
 
 * **Docker Compose** — persistent deployment, container health checks, and updates
+* **Migration** — [official path from nzbdav-dev v0.6.4](https://nzbdav.com/getting-started/migration/) and community forks (Pukabyte, NzbDavEx)
 * **Import strategies** — Rclone symlinks for Plex or STRM files for Emby/Jellyfin
 * **Performance tuning** — benchmarking WebDAV connection limits
 * **Integrations** — automating Radarr/Sonarr queue management and repairs
