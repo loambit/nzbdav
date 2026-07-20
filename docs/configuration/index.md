@@ -4,6 +4,10 @@ Day-to-day settings live in the admin UI (**Settings**) and persist in SQLite un
 
 For headless / container bootstrap, see **[Environment variables](environment-variables.md)** — the schema of env vars that configure NzbDAV without the UI (or as fallbacks when a UI value is empty).
 
+!!! note "Docs track latest"
+
+    Settings marked [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since } (or another version) were introduced in that release. Older images will not show those controls.
+
 ## Settings hub
 
 <div class="grid cards" markdown>

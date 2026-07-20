@@ -422,6 +422,16 @@ else
 - **Streaming changes:** run the focused backend tests and retain manual range, rclone scrubbing, and encrypted-archive playback checks for behavior not covered by automation.
 - **Stack dumps for known failures:** do not dismiss an attached exception trace as “expected” without a remediation that catches it and logs a human-friendly event (see [Stack dumps and human-friendly log events](#stack-dumps-and-human-friendly-log-events)).
 
+## Docs version pills
+
+When documenting a **new user-visible** feature or setting, mark the introducing release with a `since` pill so readers on older images know the minimum version:
+
+```markdown
+## Feature heading [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since }
+```
+
+Use the first stable release that shipped the capability (not every patch). Style lives in `docs/stylesheets/extra.css` (`.nzbdav-since`). Do not archaeology-tag every historical setting — focus on capabilities readers might try from docs while still on an older tag.
+
 ## Useful references
 
 - [README.md](README.md) — product overview

@@ -20,7 +20,7 @@
 - STRM: Base URL reachable from Emby/Jellyfin?
 - Check Automatic Queue Management rules — [Arrs](../configuration/arrs.md).
 
-## `addurl` SSRF / private indexer
+## `addurl` SSRF / private indexer [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since }
 
 Allow Docker DNS or LAN hosts under **Trusted local hosts** — [SABnzbd API](../features/sab-api.md).
 

@@ -10,7 +10,7 @@ Requires:
 - At least one configured Radarr/Sonarr instance
 - **Enable Background Repairs**
 
-Tune concurrency, health-check depth, aging, and auto-remove thresholds — [Repairs settings](../configuration/repairs.md).
+Tune concurrency, health-check depth, aging [since 0.8.0](https://github.com/nzbdav/nzbdav/releases/tag/v0.8.0){ .nzbdav-since }, and auto-remove thresholds — [Repairs settings](../configuration/repairs.md).
 
 ## Health-check retention
 
