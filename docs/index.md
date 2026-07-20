@@ -1,5 +1,5 @@
 ---
-title: NzbDav
+title: NzbDAV
 hide:
   - navigation
   - toc
@@ -7,9 +7,9 @@ hide:
 
 <div class="nzbdav-hero" markdown>
 
-![NzbDav admin UI](https://github.com/user-attachments/assets/37649514-bca5-471f-9556-0d34de2bd8e5)
+![NzbDAV admin UI](https://github.com/user-attachments/assets/37649514-bca5-471f-9556-0d34de2bd8e5)
 
-# NzbDav
+# NzbDAV
 
 <p class="nzbdav-tagline" markdown>
 **Mount NZBs as a virtual filesystem and stream directly from Usenet** — without downloading full media files first.
@@ -34,17 +34,17 @@ hide:
 
 </div>
 
-NzbDav is a **WebDAV server** that mounts NZB documents as a browsable virtual filesystem. Content streams on demand from your Usenet provider. A **SABnzbd-compatible API** lets Sonarr, Radarr, and similar tools use it as a drop-in download client — so you can build an effectively infinite media library without storing full files on disk.
+NzbDAV is a **WebDAV server** that mounts NZB documents as a browsable virtual filesystem. Content streams on demand from your Usenet provider. A **SABnzbd-compatible API** lets Sonarr, Radarr, and similar tools use it as a drop-in download client — so you can build an effectively infinite media library without storing full files on disk.
 
 ```mermaid
 flowchart LR
-  Arr[Sonarr_Radarr] -->|SAB_API| Queue[NzbDav_Queue]
+  Arr[Sonarr_Radarr] -->|SAB_API| Queue[NzbDAV_Queue]
   Queue --> Mount[WebDAV_mount]
   Mount --> Stream[Usenet_stream]
   Player[Plex_Jellyfin_rclone] --> Mount
 ```
 
-## Why NzbDav
+## Why NzbDAV
 
 <div class="grid cards" markdown>
 
@@ -82,6 +82,22 @@ flowchart LR
 
 </div>
 
+## How NzbDAV compares
+
+Choosing between streaming WebDAV tools and classic download clients depends on your media server, disk budget, and how much ops surface you want.
+
+<div class="grid cards" markdown>
+
+-   :material-scale-balance:{ .lg .middle } __Honest comparison__
+
+    ---
+
+    NzbDAV vs AltMount vs classic SABnzbd/NZBGet — feature table and audience guidance.
+
+    [:octicons-arrow-right-24: Compare alternatives](guides/compare.md)
+
+</div>
+
 ## Quick start
 
 === "Docker run"
@@ -114,7 +130,7 @@ Then open `http://localhost:3000`, create your admin account, and configure a Us
 
 !!! warning "Expose carefully"
 
-    Port `3000` is plain HTTP. Put NzbDav behind HTTPS for remote access. WebDAV uses Basic auth, so TLS matters. Prefer binding `127.0.0.1:3000:3000` when a reverse proxy runs on the host.
+    Port `3000` is plain HTTP. Put NzbDAV behind HTTPS for remote access. WebDAV uses Basic auth, so TLS matters. Prefer binding `127.0.0.1:3000:3000` when a reverse proxy runs on the host.
 
 [Full Docker guide](getting-started/docker.md){ .md-button .md-button--primary }
 [First-run checklist](getting-started/first-run.md){ .md-button }
@@ -159,7 +175,7 @@ Then open `http://localhost:3000`, create your admin account, and configure a Us
 
 ## Track progress on GitHub
 
-NzbDav is developed in the open. Use GitHub to follow releases, file issues, and review pull requests.
+NzbDAV is developed in the open. Use GitHub to follow releases, file issues, and review pull requests.
 
 [Repository](https://github.com/nzbdav/nzbdav){ .md-button .md-button--primary }
 [Releases](https://github.com/nzbdav/nzbdav/releases){ .md-button }
@@ -168,14 +184,14 @@ NzbDav is developed in the open. Use GitHub to follow releases, file issues, and
 
 ## Ecosystem
 
-NzbDav owns the streaming stack end to end. Complementary managed libraries — **UsenetSharp**, **RapidYencSharp**, **rapidyenc**, and **SharpCompress** — land connection, decode, and archive fixes in the right layer so playback improvements ship with the product.
+NzbDAV owns the streaming stack end to end. Complementary managed libraries — **UsenetSharp**, **RapidYencSharp**, **rapidyenc**, and **SharpCompress** — land connection, decode, and archive fixes in the right layer so playback improvements ship with the product.
 
 [About the project](community/about.md){ .md-button }
 
 ## License
 
-NzbDav is released under the [MIT License](https://github.com/nzbdav/nzbdav/blob/main/LICENSE).
+NzbDAV is released under the [MIT License](https://github.com/nzbdav/nzbdav/blob/main/LICENSE).
 
 !!! warning "Disclaimer"
 
-    NzbDav is intended for use with **legally obtained or public domain** content only. The maintainers do not condone piracy and will not provide support for copyright infringement.
+    NzbDAV is intended for use with **legally obtained or public domain** content only. The maintainers do not condone piracy and will not provide support for copyright infringement.

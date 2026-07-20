@@ -2,7 +2,7 @@
 
 Day-to-day settings live in the admin UI (**Settings**) and persist in SQLite under `/config`. Use this section as a walkthrough of every Settings tab.
 
-For headless / container bootstrap, see **[Environment variables](environment-variables.md)** — the schema of env vars that configure NzbDav without the UI (or as fallbacks when a UI value is empty).
+For headless / container bootstrap, see **[Environment variables](environment-variables.md)** — the schema of env vars that configure NzbDAV without the UI (or as fallbacks when a UI value is empty).
 
 ## Settings hub
 

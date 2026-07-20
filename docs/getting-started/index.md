@@ -24,7 +24,7 @@ Choose a path based on where you are:
 
     ---
 
-    Add NzbDav as a SABnzbd download client in Sonarr and Radarr.
+    Add NzbDAV as a SABnzbd download client in Sonarr and Radarr.
 
     [:octicons-arrow-right-24: Connect Radarr/Sonarr](connect-arr.md)
 

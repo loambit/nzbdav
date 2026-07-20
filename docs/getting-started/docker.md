@@ -1,6 +1,6 @@
 # Docker
 
-NzbDav ships as a single multi-arch image: `ghcr.io/nzbdav/nzbdav`. The container runs the frontend (public port `3000`) and backend (internal `8080`).
+NzbDAV ships as a single multi-arch image: `ghcr.io/nzbdav/nzbdav`. The container runs the frontend (public port `3000`) and backend (internal `8080`).
 
 !!! tip "IPv6-only hosts"
 

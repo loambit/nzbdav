@@ -178,6 +178,7 @@ Start with the [getting started guide](https://nzbdav.com/getting-started/) for 
 * **Search profiles** — token-scoped Newznab, Addon, and JSON adapter setup
 * **Watchtower** — proactive wanted-list resolution in the [Watchtower guide](https://nzbdav.com/features/watchtower/)
 * **Configuration** — [Settings walkthrough](https://nzbdav.com/configuration/) and [environment variables](https://nzbdav.com/configuration/environment-variables/)
+* **Compare** — [NzbDAV vs AltMount vs classic download clients](https://nzbdav.com/guides/compare/)
 
 ## Development
 
@@ -188,4 +189,4 @@ The project consists of a .NET backend (WebDAV, Usenet streaming, SAB API) and a
 NzbDAV is released under the [MIT License](LICENSE).
 
 > [!NOTE]
-> NzbDav is intended for use with legally obtained content only. The project maintainers do not condone piracy and will not provide support for users suspected of engaging in copyright infringement.
+> NzbDAV is intended for use with legally obtained or public domain content only. The project maintainers do not condone piracy and will not provide support for users suspected of engaging in copyright infringement.

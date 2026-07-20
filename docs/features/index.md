@@ -1,6 +1,6 @@
 # Features
 
-NzbDav combines a virtual filesystem, Usenet streaming stack, and automation APIs.
+NzbDAV combines a virtual filesystem, Usenet streaming stack, and automation APIs.
 
 <div class="grid cards" markdown>
 

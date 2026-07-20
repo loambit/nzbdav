@@ -1,6 +1,6 @@
 # Connect Radarr / Sonarr
 
-NzbDav speaks the SABnzbd API surface *Arr apps expect. Hostnames below assume a shared Docker network.
+NzbDAV speaks the SABnzbd API surface *Arr apps expect. Hostnames below assume a shared Docker network.
 
 ## Add the download client
 
@@ -8,15 +8,15 @@ In Radarr or Sonarr → **Settings** → **Download Clients** → **Add** → **
 
 | Setting | Value |
 |---------|-------|
-| Name | `NzbDav` |
+| Name | `NzbDAV` |
 | Host | `nzbdav` (or reachable hostname) |
 | Port | `3000` |
-| API Key | NzbDav **Settings → SABnzbd → API Key** |
+| API Key | NzbDAV **Settings → SABnzbd → API Key** |
 | Category | Match categories you configured (e.g. `movies`, `tv`) |
 
 Test the connection. Prefer `addfile` when clients can upload NZB bytes; `addurl` to private indexers needs [Trusted local hosts](../configuration/sabnzbd.md).
 
-## Register *Arr in NzbDav
+## Register *Arr in NzbDAV
 
 **Settings → Radarr/Sonarr**:
 
@@ -28,7 +28,7 @@ Only Usenet queue items are acted on. See [Radarr/Sonarr settings](../configurat
 
 ## Align import paths
 
-| Strategy | NzbDav setting | *Arr / media server |
+| Strategy | NzbDAV setting | *Arr / media server |
 |----------|----------------|---------------------|
 | Symlinks | Rclone mount dir e.g. `/mnt/remote/nzbdav` | Same path must exist inside *Arr |
 | STRM | Completed dir e.g. `/mnt/completed-downloads` + Base URL | Media server must reach Base URL |

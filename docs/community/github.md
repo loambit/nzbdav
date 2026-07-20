@@ -1,6 +1,6 @@
 # GitHub
 
-NzbDav is developed at **[nzbdav/nzbdav](https://github.com/nzbdav/nzbdav)**.
+NzbDAV is developed at **[nzbdav/nzbdav](https://github.com/nzbdav/nzbdav)**.
 
 <div class="grid cards" markdown>
 

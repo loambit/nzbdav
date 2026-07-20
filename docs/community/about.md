@@ -1,10 +1,10 @@
 # About
 
-NzbDav is a single product: a WebDAV + SABnzbd-compatible Usenet streaming server.
+NzbDAV is a single product: a WebDAV + SABnzbd-compatible Usenet streaming server.
 
 ## Ecosystem
 
-Playback quality depends on the full stack. NzbDav complements and ships with managed libraries in the same ecosystem — **UsenetSharp**, **RapidYencSharp**, **rapidyenc**, and **SharpCompress** — so connection, yEnc, and archive fixes land in the right layer instead of waiting on a fragmented dependency chain.
+Playback quality depends on the full stack. NzbDAV complements and ships with managed libraries in the same ecosystem — **UsenetSharp**, **RapidYencSharp**, **rapidyenc**, and **SharpCompress** — so connection, yEnc, and archive fixes land in the right layer instead of waiting on a fragmented dependency chain.
 
 ## Heritage
 
@@ -16,4 +16,4 @@ Historical stack announcement notes: [0.7.x coordinated release](history/release
 
 [MIT](https://github.com/nzbdav/nzbdav/blob/main/LICENSE).
 
-NzbDav is intended for legally obtained content only.
+NzbDAV is intended for legally obtained or public domain content only.

@@ -1,5 +1,5 @@
 [project]
-site_name = "NzbDav"
+site_name = "NzbDAV"
 site_description = "Mount NZBs as a virtual filesystem and stream directly from Usenet"
 site_url = "https://nzbdav.com/"
 docs_dir = "docs"
@@ -7,7 +7,7 @@ site_dir = "site"
 repo_url = "https://github.com/nzbdav/nzbdav"
 repo_name = "nzbdav/nzbdav"
 edit_uri = "edit/main/docs/"
-copyright = "NzbDav is released under the MIT License"
+copyright = "NzbDAV is released under the MIT License"
 extra_css = ["stylesheets/extra.css"]
 
 nav = [
@@ -20,6 +20,7 @@ nav = [
   ]},
   { "Guides" = [
     { "Architecture" = "guides/architecture.md" },
+    { "Compare alternatives" = "guides/compare.md" },
     { "Import strategies" = "guides/import-strategies.md" },
     { "Mounting WebDAV" = "guides/mounting-webdav.md" },
     { "Media servers" = "guides/media-servers.md" },

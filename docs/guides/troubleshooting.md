@@ -15,7 +15,7 @@
 
 ## *Arr won't import
 
-- Paths must match exactly between NzbDav completed path and *Arr containers.
+- Paths must match exactly between NzbDAV completed path and *Arr containers.
 - Symlinks: rclone mount healthy? `ls` shows `completed-symlinks` and `.ids`?
 - STRM: Base URL reachable from Emby/Jellyfin?
 - Check Automatic Queue Management rules — [Arrs](../configuration/arrs.md).

@@ -1,6 +1,6 @@
 # NNTP pipelining
 
-NzbDav uses UsenetSharp batch BODY requests to send multiple NNTP commands on one connection without waiting for each response. Responses are read in order with bounded backpressure.
+NzbDAV uses UsenetSharp batch BODY requests to send multiple NNTP commands on one connection without waiting for each response. Responses are read in order with bounded backpressure.
 
 ## Two toggles
 

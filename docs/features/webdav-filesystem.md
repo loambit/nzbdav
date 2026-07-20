@@ -1,6 +1,6 @@
 # WebDAV filesystem
 
-NzbDav exposes NZB contents as a browsable tree over WebDAV (and the Explore UI).
+NzbDAV exposes NZB contents as a browsable tree over WebDAV (and the Explore UI).
 
 Typical top-level paths:
 

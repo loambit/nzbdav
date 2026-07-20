@@ -2,19 +2,19 @@
 
 Stream Usenet on demand in Stremio using [AIOStreams](https://github.com/Viren070/AIOStreams). Upstream guide: [AIOStreams Usenet docs](https://docs.aiostreams.viren070.me/guides/usenet/).
 
-## Configure the NzbDav service
+## Configure the NzbDAV service
 
-In AIOStreams → **Services** → **NzbDav**:
+In AIOStreams → **Services** → **NzbDAV**:
 
 | Setting | Value |
 |---------|-------|
 | URL | `http://nzbdav:3000` on the same Docker network, or your HTTPS URL |
 | Public URL | Leave blank when using the AIOStreams proxy; otherwise HTTPS reachable by players |
-| API Key | NzbDav **Settings → SABnzbd** |
+| API Key | NzbDAV **Settings → SABnzbd** |
 | WebDAV Username / Password | **Settings → WebDAV** |
 | AIOStreams Auth Token | Recommended `username:password` from `AIOSTREAMS_AUTH` |
 
-Providing the auth token lets AIOStreams proxy streams — keeps NzbDav private and avoids protocol mismatches.
+Providing the auth token lets AIOStreams proxy streams — keeps NzbDAV private and avoids protocol mismatches.
 
 ## Newznab addon
 
@@ -26,7 +26,7 @@ Providing the auth token lets AIOStreams proxy streams — keeps NzbDav private 
 
 ## Search profiles (optional)
 
-Expose NzbDav indexers as Newznab/Addon/JSON adapters — [Search profiles](../configuration/profiles.md) and [Indexer search](../features/indexer-search.md).
+Expose NzbDAV indexers as Newznab/Addon/JSON adapters — [Search profiles](../configuration/profiles.md) and [Indexer search](../features/indexer-search.md).
 
 ## Related
 

@@ -1,6 +1,6 @@
 # Streaming only
 
-Use NzbDav without building a traditional *Arr library.
+Use NzbDAV without building a traditional *Arr library.
 
 ## Patterns
 
