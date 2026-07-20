@@ -299,9 +299,11 @@ Source of truth for triage ratings is the **[NZBDav Ecosystem](https://github.co
 
 | Effort | Rough size |
 |--------|------------|
-| `Low` | Roughly ≤1–2 days |
-| `Medium` | Roughly a few days to ~1 week |
-| `High` | Multi-week and/or UsenetSharp / SharpCompress / library work |
+| `XS` | Hours / trivial |
+| `S` | Roughly ≤1–2 days |
+| `M` | Roughly a few days to ~1 week |
+| `L` | Multi-week |
+| `XL` | Multi-week+ and/or UsenetSharp / SharpCompress / library work |
 
 Do **not** recreate `priority:*` or `effort:*` labels, and do **not** set org Issue Fields `Priority` / `Effort` for triage. Other meta labels are fine: `performance`, `cataloged`, `more-info-required`, `next-major`, `library`, and source tags (`upstream-audit`, `elfhosted`, etc.).
 
