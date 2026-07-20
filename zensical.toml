@@ -72,7 +72,7 @@ nav = [
     { "Deletion audit" = "operations/deletion-audit.md" },
   ]},
   { "Community" = [
-    { "GitHub" = "community/github.md" },
+    { "Connect" = "community/github.md" },
     { "Contributing" = "community/contributing.md" },
     { "Changelog" = "community/changelog.md" },
     { "About" = "community/about.md" },
@@ -133,6 +133,11 @@ generator = false
 icon = "fontawesome/brands/github"
 link = "https://github.com/nzbdav/nzbdav"
 name = "GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/discord"
+link = "https://discord.gg/EJaptcg9UY"
+name = "Discord"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/docker"

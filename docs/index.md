@@ -181,11 +181,12 @@ Then open `http://localhost:3000` (self-hosted) or your DUMB service URL, create
 
 </div>
 
-## Track progress on GitHub
+## Community
 
-NzbDAV is developed in the open. Use GitHub to follow releases, file issues, and review pull requests.
+Chat on Discord, track releases on GitHub, and file issues when you need a durable bug report.
 
-[Repository](https://github.com/nzbdav/nzbdav){ .md-button .md-button--primary }
+[Join Discord `#nzbdav`](https://discord.gg/EJaptcg9UY){ .md-button .md-button--primary }
+[Repository](https://github.com/nzbdav/nzbdav){ .md-button }
 [Releases](https://github.com/nzbdav/nzbdav/releases){ .md-button }
 [Issues](https://github.com/nzbdav/nzbdav/issues){ .md-button }
 [Community hub](community/github.md){ .md-button }

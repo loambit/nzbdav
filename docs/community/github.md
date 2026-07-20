@@ -1,8 +1,16 @@
-# GitHub
+# Community
 
-NzbDAV is developed at **[nzbdav/nzbdav](https://github.com/nzbdav/nzbdav)**.
+Chat with other operators, track development, and contribute.
 
 <div class="grid cards" markdown>
+
+-   :fontawesome-brands-discord:{ .lg .middle } __Discord__
+
+    ---
+
+    Join **`#nzbdav`** for setup help, streaming tips, and informal discussion.
+
+    [:octicons-arrow-right-24: discord.gg/EJaptcg9UY](https://discord.gg/EJaptcg9UY)
 
 -   :fontawesome-brands-github:{ .lg .middle } __Repository__
 
@@ -54,4 +62,4 @@ NzbDAV is developed at **[nzbdav/nzbdav](https://github.com/nzbdav/nzbdav)**.
 
 </div>
 
-Site header also shows live stars / forks / latest release when available.
+Prefer **Issues** for bugs and feature requests that need tracking; use **Discord** for quicker chat. The site header also shows live GitHub stars / forks / latest release when available.
