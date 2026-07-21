@@ -47,8 +47,13 @@ public sealed class CorruptionDetectingYencStream(
         if (Interlocked.Exchange(ref _reported, 1) == 0)
         {
             Log.Warning(
+                "Provider {Provider} returned corrupt yEnc data for segment {SegmentId}. Reason: {Reason}",
+                providerKey,
+                segmentId,
+                exception.Message);
+            Log.Debug(
                 exception,
-                "Provider {Provider} returned corrupt yEnc data for segment {SegmentId}",
+                "Corrupt yEnc data stack for provider {Provider} segment {SegmentId}",
                 providerKey,
                 segmentId);
         }

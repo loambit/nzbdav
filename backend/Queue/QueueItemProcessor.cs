@@ -106,26 +106,29 @@ public class QueueItemProcessor(
             try
             {
                 var attempt = retryAttempts.AddOrUpdate(queueItem.Id, 1, (_, prev) => prev + 1);
+                e.TryGetKnownErrorMessage(out var reason);
                 if (attempt > MaxProviderRetryAttempts)
                 {
                     Log.Error(
-                        e,
-                        "Giving up on queue item {JobName} after {Attempts} provider-connection failures",
+                        "Giving up on queue item {JobName} after {Attempts} provider-connection failures. Reason: {Reason}",
                         queueItem.JobName,
-                        attempt - 1);
+                        attempt - 1,
+                        reason);
+                    Log.Debug(e, "Queue item give-up stack for {JobName}", queueItem.JobName);
                     await MarkQueueItemCompleted(startTime, error: e.Message).ConfigureAwait(false);
                     return;
                 }
 
                 var backoff = GetProviderRetryBackoff(attempt);
                 Log.Warning(
-                    e,
                     "Provider connection issue for queue item {JobName} (attempt {Attempt}/{MaxAttempts}); " +
-                    "retrying in {BackoffSeconds:0} seconds",
+                    "retrying in {BackoffSeconds:0} seconds. Reason: {Reason}",
                     queueItem.JobName,
                     attempt,
                     MaxProviderRetryAttempts,
-                    backoff.TotalSeconds);
+                    backoff.TotalSeconds,
+                    reason);
+                Log.Debug(e, "Queue item retry stack for {JobName}", queueItem.JobName);
                 dbClient.Ctx.ClearChangeTracker();
                 queueItem.PauseUntil = DateTime.Now + backoff;
                 dbClient.Ctx.QueueItems.Attach(queueItem);

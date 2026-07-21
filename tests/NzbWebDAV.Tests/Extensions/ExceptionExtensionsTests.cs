@@ -57,6 +57,19 @@ public class ExceptionExtensionsTests
     }
 
     [Fact]
+    public void TryGetKnownErrorMessage_RecognizesCorruptArticle()
+    {
+        var ex = new UsenetCorruptArticleException(
+            "segment@example",
+            "provider-a",
+            new InvalidDataException("The decoded yEnc CRC32 was d58e29bc, but the trailer expected df0ce5f8."));
+
+        Assert.True(ex.TryGetKnownErrorMessage(out var reason));
+        Assert.Contains("corrupt yEnc", reason);
+        Assert.True(ex.IsRetryableDownloadException());
+    }
+
+    [Fact]
     public void TryGetKnownErrorMessage_RecognizesArticleNotFound()
     {
         var ex = new UsenetArticleNotFoundException("<missing@example>");
