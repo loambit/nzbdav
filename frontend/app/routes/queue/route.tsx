@@ -10,19 +10,27 @@ import { initializeUploadController } from "./controllers/nzb-upload-controller"
 import { useQueueDropzone } from "./controllers/dropzone-controller";
 import { Alert } from "~/components/ui";
 
-const pageSize = 100;
+export const PAGE_SIZE_OPTIONS = [25, 50, 100, 250] as const;
+const DEFAULT_PAGE_SIZE = 100;
 
 function parsePage(value: string | null): number {
     const page = parseInt(value ?? "1", 10);
     return Number.isFinite(page) && page > 0 ? page : 1;
 }
 
+function parsePageSize(value: string | null): number {
+    const size = parseInt(value ?? String(DEFAULT_PAGE_SIZE), 10);
+    return (PAGE_SIZE_OPTIONS as readonly number[]).includes(size) ? size : DEFAULT_PAGE_SIZE;
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
     const url = new URL(request.url);
     const queuePage = parsePage(url.searchParams.get("qp"));
     const historyPage = parsePage(url.searchParams.get("hp"));
-    const queuePromise = backendClient.getQueue(pageSize, (queuePage - 1) * pageSize);
-    const historyPromise = backendClient.getHistory(pageSize, (historyPage - 1) * pageSize);
+    const queuePageSize = parsePageSize(url.searchParams.get("qps"));
+    const historyPageSize = parsePageSize(url.searchParams.get("hps"));
+    const queuePromise = backendClient.getQueue(queuePageSize, (queuePage - 1) * queuePageSize);
+    const historyPromise = backendClient.getHistory(historyPageSize, (historyPage - 1) * historyPageSize);
     const configPromise = backendClient.getConfig(["api.categories", "api.manual-category"])
     const queue = await queuePromise;
     const history = await historyPromise;
@@ -47,12 +55,13 @@ export async function loader({ request }: Route.LoaderArgs) {
         manualCategory: manualCategory,
         queuePage: queuePage,
         historyPage: historyPage,
-        pageSize: pageSize,
+        queuePageSize,
+        historyPageSize,
     }
 }
 
 export default function Queue(props: Route.ComponentProps) {
-    const { pageSize, queuePage, historyPage, totalQueueCount, totalHistoryCount } = props.loaderData;
+    const { queuePageSize, historyPageSize, queuePage, historyPage, totalQueueCount, totalHistoryCount } = props.loaderData;
     const [queueSlots, setQueueSlots] = useState<PresentationQueueSlot[]>(props.loaderData.queueSlots);
     const [historySlots, setHistorySlots] = useState<PresentationHistorySlot[]>(props.loaderData.historySlots);
     const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
@@ -64,8 +73,8 @@ export default function Queue(props: Route.ComponentProps) {
     useEffect(() => { setQueueSlots(props.loaderData.queueSlots); }, [props.loaderData.queueSlots]);
     useEffect(() => { setHistorySlots(props.loaderData.historySlots); }, [props.loaderData.historySlots]);
 
-    const queueTotalPages = Math.max(1, Math.ceil(totalQueueCount / pageSize));
-    const historyTotalPages = Math.max(1, Math.ceil(totalHistoryCount / pageSize));
+    const queueTotalPages = Math.max(1, Math.ceil(totalQueueCount / queuePageSize));
+    const historyTotalPages = Math.max(1, Math.ceil(totalHistoryCount / historyPageSize));
     const isQueueLive = queuePage === 1;
     const isHistoryLive = historyPage === 1;
 
@@ -79,13 +88,30 @@ export default function Queue(props: Route.ComponentProps) {
     const onQueuePageSelected = useCallback((page: number) => setPageParam("qp", page), [setPageParam]);
     const onHistoryPageSelected = useCallback((page: number) => setPageParam("hp", page), [setPageParam]);
 
+    const setPageSizeParam = useCallback((sizeKey: string, pageKey: string, size: number) => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set(sizeKey, String(size));
+            next.set(pageKey, "1");
+            return next;
+        }, { preventScrollReset: true });
+    }, [setSearchParams]);
+    const onQueuePageSizeSelected = useCallback(
+        (size: number) => setPageSizeParam("qps", "qp", size),
+        [setPageSizeParam],
+    );
+    const onHistoryPageSizeSelected = useCallback(
+        (size: number) => setPageSizeParam("hps", "hp", size),
+        [setPageSizeParam],
+    );
+
     const combinedQueueSlots = isQueueLive
         ? [...uploadingFiles.map(file => file.queueSlot), ...queueSlots]
         : queueSlots;
 
     // queue/history events
-    const queueEvents = useQueueEvents(setUploadingFiles, setQueueSlots, uploadQueueRef, pageSize, isQueueLive);
-    const historyEvents = useHistoryEvents(setHistorySlots, pageSize);
+    const queueEvents = useQueueEvents(setUploadingFiles, setQueueSlots, uploadQueueRef, queuePageSize, isQueueLive);
+    const historyEvents = useHistoryEvents(setHistorySlots, historyPageSize);
 
     // websocket
     initializeQueueHistoryWebsocket(queueEvents, historyEvents, isQueueLive, isHistoryLive);
@@ -113,9 +139,12 @@ export default function Queue(props: Route.ComponentProps) {
                         queueSlots={combinedQueueSlots}
                         totalQueueCount={props.loaderData.totalQueueCount + uploadingFiles.length}
                         pageNumber={queuePage}
+                        pageSize={queuePageSize}
+                        pageSizeOptions={PAGE_SIZE_OPTIONS}
                         totalPages={queueTotalPages}
                         isLive={isQueueLive}
                         onPageSelected={onQueuePageSelected}
+                        onPageSizeSelected={onQueuePageSizeSelected}
                         categories={props.loaderData.categories}
                         manualCategoryRef={manualCategoryRef}
                         onIsSelectedChanged={queueEvents.onSelectQueueSlots}
@@ -133,9 +162,12 @@ export default function Queue(props: Route.ComponentProps) {
                     historySlots={historySlots}
                     totalHistoryCount={props.loaderData.totalHistoryCount}
                     pageNumber={historyPage}
+                    pageSize={historyPageSize}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
                     totalPages={historyTotalPages}
                     isLive={isHistoryLive}
                     onPageSelected={onHistoryPageSelected}
+                    onPageSizeSelected={onHistoryPageSizeSelected}
                     onIsSelectedChanged={historyEvents.onSelectHistorySlots}
                     onIsRemovingChanged={historyEvents.onRemovingHistorySlots}
                     onRemoved={historyEvents.onRemoveHistorySlots}

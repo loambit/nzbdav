@@ -16,7 +16,7 @@ export function PageSection({ title, subTitle, badgeText, children }: PageTableP
                     <div className="mb-2.5 flex flex-wrap items-center justify-between gap-4">
                         {title}
                         {badgeText &&
-                            <Badge className="badge-outline text-base-content/60 text-xs font-medium">
+                            <Badge className="badge-ghost badge-sm font-mono tabular-nums">
                                 {badgeText}
                             </Badge>
                         }

@@ -7,9 +7,10 @@ export type SimpleDropdownProps = {
     value?: string,
     onChange?: (value: string) => void,
     valueRef?: RefObject<string>,
+    ariaLabel?: string,
 }
 
-export const SimpleDropdown = memo(({ type, options, value, onChange, valueRef }: SimpleDropdownProps) => {
+export const SimpleDropdown = memo(({ type, options, value, onChange, valueRef, ariaLabel }: SimpleDropdownProps) => {
     if (!valueRef && (!value || !onChange)) {
         throw new Error("SimpleDropdown requires either the valueRef prop or both the value and onChange props.")
     }
@@ -28,7 +29,7 @@ export const SimpleDropdown = memo(({ type, options, value, onChange, valueRef }
 
     return (
         <Select
-            aria-label="Select option"
+            aria-label={ariaLabel ?? "Select option"}
             className={`select-xs w-auto min-w-20 ${type === "bordered" ? "" : "select-ghost"}`.trim()}
             value={renderedValue}
             onChange={handleNativeChange}

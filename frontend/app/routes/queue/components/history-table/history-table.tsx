@@ -15,15 +15,31 @@ export type HistoryTableProps = {
     historySlots: PresentationHistorySlot[],
     totalHistoryCount: number,
     pageNumber: number,
+    pageSize: number,
+    pageSizeOptions: readonly number[],
     totalPages: number,
     isLive: boolean,
     onPageSelected: (page: number) => void,
+    onPageSizeSelected: (pageSize: number) => void,
     onIsSelectedChanged: (nzo_ids: Set<string>, isSelected: boolean) => void,
     onIsRemovingChanged: (nzo_ids: Set<string>, isRemoving: boolean) => void,
     onRemoved: (nzo_ids: Set<string>) => void,
 }
 
-export function HistoryTable({ historySlots, totalHistoryCount, pageNumber, totalPages, isLive, onPageSelected, onIsSelectedChanged, onIsRemovingChanged, onRemoved }: HistoryTableProps) {
+export function HistoryTable({
+    historySlots,
+    totalHistoryCount,
+    pageNumber,
+    pageSize,
+    pageSizeOptions,
+    totalPages,
+    isLive,
+    onPageSelected,
+    onPageSizeSelected,
+    onIsSelectedChanged,
+    onIsRemovingChanged,
+    onRemoved,
+}: HistoryTableProps) {
     const [isConfirmingRemoval, setIsConfirmingRemoval] = useState(false);
     const selectedCount = historySlots.filter(x => !!x.isSelected).length;
     const headerCheckboxState: TriCheckboxState = selectedCount === 0 ? 'none' : selectedCount === historySlots.length ? 'all' : 'some';
@@ -73,15 +89,26 @@ export function HistoryTable({ historySlots, totalHistoryCount, pageNumber, tota
         </div>
     );
 
-    const footer = totalPages > 1 ? (
+    const footer = totalHistoryCount > 0 ? (
         <div className="flex flex-col items-center gap-2 text-xs text-base-content/60">
             {!isLive && <span>Live updates pause on older pages. Go to page 1 for live.</span>}
-            <Pagination pageNumber={pageNumber} totalPages={totalPages} onPageSelected={onPageSelected} />
+            <Pagination
+                pageNumber={pageNumber}
+                totalPages={totalPages}
+                totalCount={totalHistoryCount}
+                pageSize={pageSize}
+                pageSizeOptions={pageSizeOptions}
+                onPageSelected={onPageSelected}
+                onPageSizeSelected={onPageSizeSelected}
+            />
         </div>
     ) : undefined;
 
     return (
-        <PageSection title={sectionTitle}>
+        <PageSection
+            title={sectionTitle}
+            badgeText={totalHistoryCount > 0 ? String(totalHistoryCount) : undefined}
+        >
             <PageTable headerCheckboxState={headerCheckboxState} onHeaderCheckboxChange={onSelectAll} footer={footer} showCompleted>
                 {historySlots.map(slot =>
                     <HistoryRow

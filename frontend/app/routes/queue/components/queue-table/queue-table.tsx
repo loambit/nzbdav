@@ -14,9 +14,12 @@ export type QueueTableProps = {
     queueSlots: PresentationQueueSlot[],
     totalQueueCount: number,
     pageNumber: number,
+    pageSize: number,
+    pageSizeOptions: readonly number[],
     totalPages: number,
     isLive: boolean,
     onPageSelected: (page: number) => void,
+    onPageSizeSelected: (pageSize: number) => void,
     categories: string[],
     manualCategoryRef: React.RefObject<string>,
     onIsSelectedChanged: (nzo_ids: Set<string>, isSelected: boolean) => void,
@@ -49,9 +52,12 @@ export function QueueTable({
     queueSlots,
     totalQueueCount,
     pageNumber,
+    pageSize,
+    pageSizeOptions,
     totalPages,
     isLive,
     onPageSelected,
+    onPageSizeSelected,
     categories,
     manualCategoryRef,
     onIsSelectedChanged,
@@ -171,15 +177,27 @@ export function QueueTable({
         </div>
     );
 
-    const footer = totalPages > 1 ? (
+    const footer = totalQueueCount > 0 ? (
         <div className="flex flex-col items-center gap-2 text-xs text-base-content/60">
             {!isLive && <span>Live updates pause on older pages. Go to page 1 for live.</span>}
-            <Pagination pageNumber={pageNumber} totalPages={totalPages} onPageSelected={onPageSelected} />
+            <Pagination
+                pageNumber={pageNumber}
+                totalPages={totalPages}
+                totalCount={totalQueueCount}
+                pageSize={pageSize}
+                pageSizeOptions={pageSizeOptions}
+                onPageSelected={onPageSelected}
+                onPageSizeSelected={onPageSizeSelected}
+            />
         </div>
     ) : undefined;
 
     return (
-        <PageSection title={sectionTitle} subTitle={sectionSubTitle}>
+        <PageSection
+            title={sectionTitle}
+            subTitle={sectionSubTitle}
+            badgeText={totalQueueCount > 0 ? String(totalQueueCount) : undefined}
+        >
             {queueSlots?.length == 0 ? (
                 <EmptyQueue onUploadClicked={onUploadClicked} />
             ) : (
