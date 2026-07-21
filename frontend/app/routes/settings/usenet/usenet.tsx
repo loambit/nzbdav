@@ -257,7 +257,8 @@ export function UsenetSettings({ config, setNewConfig }: UsenetSettingsProps) {
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [connections, setConnections] = useState<{[index: number]: ConnectionCounts}>({});
     const [usage, setUsage] = useState<{[index: number]: ProviderUsage}>({});
-    const providerConfig = useMemo(() => parseProviderConfig(config["usenet.providers"]), [config]);
+    const providersJson = config["usenet.providers"];
+    const providerConfig = useMemo(() => parseProviderConfig(providersJson), [providersJson]);
     const cascadeEnabled = config["usenet.cascade.enabled"] === "true";
 
     // Display-sort by type then priority when cascade is off. Cascade mode keeps
@@ -828,8 +829,13 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
     const [pipeliningOnly, setPipeliningOnly] = useState(false);
     const benchmarkAbortRef = useRef<AbortController | null>(null);
     const passIsMasked = isMaskedSecret(pass);
+    // Stable across parent re-parses of the same provider so Apply recommendation
+    // (and other dirty-config updates) don't wipe in-progress form state.
+    const providerIdentity = provider
+        ? (provider.ProviderId || providerKey(provider))
+        : "new";
 
-    // Reset form when modal opens or provider changes
+    // Reset form when modal opens or a different provider is selected
     useEffect(() => {
         if (show) {
             const lim = bytesToValueAndUnit(provider?.ByteLimit);
@@ -858,7 +864,10 @@ function ProviderModal({ show, provider, onClose, onSave, onApplyPipelining, def
             setBenchmarkError(null);
             setPipeliningOnly(false);
         }
-    }, [show, provider]);
+        // Intentionally keyed on providerIdentity, not provider object identity —
+        // parent config updates re-parse providers and would otherwise reset the form.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- provider fields read when identity/show change
+    }, [show, providerIdentity]);
 
     // Stop any in-flight speed test when the modal closes or unmounts so it
     // aborts on the backend and frees its connections immediately.
