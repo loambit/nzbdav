@@ -87,8 +87,7 @@ body:
     id: logs
     attributes:
       label: Relevant logs or screenshots
-      description: Paste redacted logs or attach screenshots. Remove credentials, API keys, paths that identify you, and NZB contents.
-      render: text
+      description: Paste redacted logs (wrap them in ```text fences if helpful) or attach screenshots. Remove credentials, API keys, paths that identify you, and NZB contents.
 
   - type: textarea
     id: environment
