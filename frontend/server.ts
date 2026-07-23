@@ -2,8 +2,8 @@ import compression from "compression";
 import express from "express";
 import http from "http";
 import { WebSocketServer } from "ws";
+import { shouldCompressResponse } from "./server/compression-filter.js";
 import { logger, requestLogger } from "./server/logger.js";
-import { shouldSkipCompression } from "./server/proxy-path.js";
 import { securityHeadersMiddleware } from "./server/security-headers.js";
 import {
   isExpectedBackendUnavailableError,
@@ -38,13 +38,8 @@ process.on("unhandledRejection", (reason) => {
 const app = express();
 app.use(
   compression({
-    // Don't compress proxied WebDAV/media/API responses; keep Content-Length intact for seek
-    filter: (req, res) => {
-      if (shouldSkipCompression(req.path || "")) {
-        return false;
-      }
-      return compression.filter(req, res);
-    },
+    // Skip WebDAV/media/API and React Router streamed bodies (see shouldCompressResponse).
+    filter: shouldCompressResponse,
   }),
 );
 app.disable("x-powered-by");
