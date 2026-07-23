@@ -204,16 +204,25 @@ Prefer the most specific type so release-please places the entry in the right ch
 | `feat` | Features | New user-visible behavior |
 | `fix` | Bug Fixes | Bug fixes, regressions, compatibility fixes |
 | `perf` | Performance Improvements | Performance-only improvements |
-| `chore` | *(omitted from release notes)* | Tooling, release automation, non-user-facing maintenance |
-| `docs` | Documentation | README, docs/, AGENTS.md |
-| `ci` | *(omitted from release notes)* | GitHub Actions / CI only |
-| `test` / `tests` | Testing | Tests only (no product behavior change) |
-| `refactor` | Refactors | Internal restructuring without behavior change |
+| `chore` | *(omitted from release notes)* | **All** non-behavior-impacting work (see below) |
+| `refactor` | Refactors | Internal restructuring that still belongs in release notes (rare; prefer `chore` when there is no user-facing story) |
 | `ux` | UX | Formatting / UI chrome with no behavior change (prefer `feat(ui)` / `fix(ui)` when behavior changes) |
 | `revert` | Reverts | Reverts of prior commits |
-| `build` | Build System | Dockerfile, build scripts, packaging (not CI workflows) |
+| `build` | Build System | Dockerfile, build scripts, packaging that operators care about in notes (otherwise prefer `chore(docker)` / `chore(build)`) |
 
-Use `fix(deps)` / `chore(deps)` for dependency bumps (Dependabot follows this).
+Use `fix(deps)` / `chore(deps)` for dependency bumps (Dependabot follows this). Prefer `chore(deps)` when the bump has no user-visible product impact.
+
+#### Always use `chore` for non-behavior work
+
+**Any change that does not alter application behavior** must use the `chore` type on both the **commit** and the **PR title**, so release-please omits it from release notes. That includes:
+
+- CI / GitHub Actions (`.github/workflows/`, Dependabot config)
+- Tests only (no product code change)
+- Documentation (`docs/`, README, published guides)
+- Agent / Cursor guidance (`AGENTS.md`, `.cursor/skills/`, `.cursor/rules/`, hooks)
+- Tooling, scripts, repo hygiene, and other maintenance chores
+
+Use a scope to name the area: `chore(ci)`, `chore(test)`, `chore(docs)`, `chore(agents)`, `chore(skills)`, etc. Do **not** use bare `docs`, `ci`, `test`, or `tests` as the commit/PR type — those either appear in release notes (`docs`, `tests`) or are redundant with `chore`.
 
 ### Scopes
 
@@ -234,7 +243,10 @@ Pick the **smallest accurate scope**. Scopes appear in changelog groupings when 
 | `ui` | Frontend pages, components, styling |
 | `deps` | Dependency updates (npm, NuGet, GitHub Actions) |
 | `ci` | GitHub Actions workflows |
-| `docs` | README, docs/, AGENTS.md |
+| `docs` | README, docs/, published documentation |
+| `test` | Automated tests only |
+| `agents` | `AGENTS.md` and agent workflow guidance |
+| `skills` | Cursor skills / rules / hooks under `.cursor/` |
 | `docker` | Dockerfile, entrypoint, container runtime |
 
 Scope is optional but **strongly preferred** for anything touching a specific subsystem. Omit scope only for small cross-cutting changes.
@@ -248,16 +260,18 @@ fix(nntp): skip failing providers with circuit breaker
 feat(ui): add setting to schedule RemoveOrphanedFiles task
 feat(db)!: add orphaned-files index migration
 fix(deps): bump vite in the frontend vite group
-ci: run pre-release image builds on demand
-docs: expand commit type guidance for release-please sections
+chore(ci): run pre-release image builds on demand
+chore(docs): expand commit type guidance for release-please sections
+chore(agents): require chore prefix for non-behavior changes
+chore(test): cover range requests past content boundary
 perf(nntp): reduce connection acquire latency under load
 refactor(queue): extract rar aggregator helpers
-test(webdav): cover range requests past content boundary
 ```
 
 ### Do not use
 
 - `chore(main): release …` — reserved for release-please automation
+- Bare `docs` / `ci` / `test` / `tests` types for non-behavior work — use `chore(<scope>)` instead so the change stays out of release notes
 - Vague messages: `update stuff`, `fix bug`, `wip`
 - Mixed unrelated changes in one commit
 
@@ -382,7 +396,7 @@ Docker image builds are shared via the reusable workflow. Branch and dependabot 
 
 - Merging to `main` triggers **release-please** (`.github/workflows/release.yml`) which maintains `CHANGELOG.md` + `version.txt` and creates GitHub releases.
 - Breaking commits (`feat!` / `fix!` / `BREAKING CHANGE` footer) → breaking version bump (and Breaking Changes changelog section). **Database migrations must always use this form.**
-- `feat` → minor bump; `fix` → patch bump (pre-1.0 rules in `.release-please-config.json`). Other conventional types (`perf`, `docs`, `test`, `refactor`, `style`, `revert`, `build`) appear in changelog sections but do not bump the version by themselves. `chore` and `ci` commits are omitted from release notes.
+- `feat` → minor bump; `fix` → patch bump (pre-1.0 rules in `.release-please-config.json`). Other conventional types that still appear in notes (`perf`, `refactor`, `ux`, `revert`, `build`, and legacy `docs` / `tests`) do not bump the version by themselves. **`chore` commits are omitted from release notes** — use `chore(<scope>)` for CI, tests, docs, agents/skills, and other non-behavior work (do not use bare `docs` / `ci` / `test` / `tests` types).
 - When release-please creates a release on merge to `main`, the same workflow run builds and pushes Docker images to `ghcr.io` (`latest`, `dev`, exact `vMAJOR.MINOR.PATCH`, and rolling `vMAJOR` / `vMAJOR.MINOR` tags) and moves the git `dev` tag to that release commit.
 - To republish images for an existing release (e.g. after fixing CI), run **Release** workflow manually with the `version` input (e.g. `0.6.5`); this also moves the git `dev` tag to that version.
 - Between releases, update the pre-release Docker image (`:dev`) and git `dev` tag on demand via **Actions → Pre-release → Run workflow**.
